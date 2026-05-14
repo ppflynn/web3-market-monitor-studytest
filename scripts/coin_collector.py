@@ -153,11 +153,34 @@ def fetch_fear_greed():
         return None
 
 
-def fetch_coingecko_history(cg_id, days):
+def looks_rate_limited(resp):
+    if resp.status_code in (403, 429):
+        return True
+    retry_after = resp.headers.get("Retry-After")
+    if retry_after:
+        return True
+    body = resp.text.lower()
+    return "rate limit" in body or "too many requests" in body
+
+
+def fetch_coingecko_history(coin_id, cg_id, days):
     url = config.COINGECKO_CHART_URL.format(cg_id, days)
     try:
+        log.info("Requesting history price: coin_id=%s, cg_id=%s, days=%s", coin_id, cg_id, days)
         resp = requests.get(url, timeout=config.REQUEST_TIMEOUT)
-        resp.raise_for_status()
+        log.info("CoinGecko history HTTP status: coin_id=%s, status_code=%s", coin_id, resp.status_code)
+        if resp.status_code != 200:
+            log.error(
+                "CoinGecko history request failed: coin_id=%s, cg_id=%s, days=%s, status_code=%s, response=%s",
+                coin_id,
+                cg_id,
+                days,
+                resp.status_code,
+                resp.text[:500]
+            )
+            if looks_rate_limited(resp):
+                log.warning("Possible API rate limit detected")
+            return None
         prices = resp.json().get("prices", [])
         if not prices:
             return []
@@ -167,7 +190,7 @@ def fetch_coingecko_history(cg_id, days):
             result.append((ts, float(entry[1])))
         return result
     except Exception as e:
-        log.error("Failed CoinGecko history for %s (days=%s): %s", cg_id, days, e)
+        log.error("Failed CoinGecko history for coin_id=%s, cg_id=%s (days=%s): %s", coin_id, cg_id, days, e)
         return None
 
 
@@ -185,7 +208,10 @@ def collect_tickers(db):
         if not pair.endswith(config.USDT_SUFFIX):
             continue
         base = pair[:pair.index("_")]
-        usdt_pairs.append((whitelist_set.get(base.lower(), 999999), ticker, base))
+        coin_id = base.lower()
+        if coin_id not in whitelist_set:
+            continue
+        usdt_pairs.append((whitelist_set[coin_id], ticker, base))
 
     usdt_pairs.sort(key=lambda x: x[0])
     usdt_pairs = usdt_pairs[:config.MAX_COINS]
@@ -225,7 +251,7 @@ def collect_history(db, coin_ids):
         cg_id = config.CG_ID_MAP.get(coin_id, coin_id)
         for days in config.HISTORY_DAYS_LIST:
             log.info("Fetching history for %s (%s days)...", coin_id, days)
-            points = fetch_coingecko_history(cg_id, days)
+            points = fetch_coingecko_history(coin_id, cg_id, days)
             if points is None or not points:
                 time.sleep(config.HISTORY_REQUEST_DELAY)
                 continue

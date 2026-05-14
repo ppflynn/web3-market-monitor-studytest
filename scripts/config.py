@@ -12,12 +12,10 @@ FNG_URL = "https://api.alternative.me/fng/"
 COINGECKO_CHART_URL = "https://api.coingecko.com/api/v3/coins/{}/market_chart?vs_currency=usd&days={}"
 
 USDT_SUFFIX = "_USDT"
-MAX_COINS = 100
+MAX_COINS = 5
 
 WHITELIST = [
-    "btc", "eth", "bnb", "sol", "xrp", "ada", "doge", "dot", "link",
-    "ltc", "bch", "avax", "matic", "uni", "shib", "trx", "etc",
-    "apt", "near", "op", "arb"
+    "btc", "eth", "sol", "bnb", "xrp"
 ]
 
 CG_ID_MAP = {
@@ -34,7 +32,7 @@ HISTORY_DAYS_LIST = [7]
 HISTORY_COIN_LIMIT = 5
 HISTORY_REQUEST_DELAY = 15
 
-COLLECT_INTERVAL = 60
+COLLECT_INTERVAL = 6
 FNG_INTERVAL = 15 * 60
 HISTORY_INTERVAL = 3600
 
