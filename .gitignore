@@ -23,6 +23,13 @@ application-local.properties
 target/
 *.class
 
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+vite.config.js.timestamp-*.mjs
+
 # Python
 __pycache__/
 *.py[cod]

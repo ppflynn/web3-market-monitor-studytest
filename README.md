@@ -1,13 +1,8 @@
-# CoinMarketCap Web3 Core
+# CoinMarketCap Web3
 
-这是一个加密货币行情数据项目的核心后端仓库，当前只包含 Spring Boot 后端服务和 Python 数据采集脚本。
+`v0.1` 是项目的第一个正式版本，包含 Spring Boot 后端、Python 数据采集脚本和 Vue 3 前端。
 
-本仓库暂不包含：
-
-- Vue 前端项目
-- Android 客户端项目
-- 本地构建产物
-- 本地环境配置和真实数据库密码
+当前版本不包含 Android 客户端。Android 项目后续会作为独立客户端继续整理。
 
 ## 功能概览
 
@@ -17,9 +12,12 @@
 - 识别 CoinGecko 历史价格接口的常见限流响应
 - 将采集结果写入 MySQL
 - 通过 Spring Boot 提供 REST API
+- 通过 Vue 前端展示币种列表、详情、历史价格图表和 Fear & Greed 指数
 - 使用 Caffeine 对部分接口数据进行缓存
 
 ## 技术栈
+
+### 后端
 
 - Java 8
 - Spring Boot 2.7.18
@@ -28,9 +26,21 @@
 - MySQL
 - Caffeine Cache
 - Maven
+
+### 数据采集
+
 - Python
 - requests
 - PyMySQL
+
+### 前端
+
+- Vue 3
+- Vite
+- Vue Router
+- Axios
+- Element Plus
+- ECharts / vue-echarts
 
 ## 目录结构
 
@@ -48,6 +58,12 @@
 │  ├─ coin_collector.py
 │  ├─ config.py
 │  └─ requirements.txt
+├─ frontend/coin-market-web
+│  ├─ src
+│  ├─ package.json
+│  ├─ package-lock.json
+│  ├─ vite.config.js
+│  └─ nginx.conf
 ├─ .mvn
 ├─ pom.xml
 ├─ mvnw.cmd
@@ -62,6 +78,7 @@ External APIs
     -> Python collector
     -> MySQL
     -> Spring Boot API
+    -> Vue frontend
 ```
 
 ## 环境变量
@@ -111,7 +128,7 @@ CREATE DATABASE coinmarketdb DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unico
 建议启动顺序：
 
 ```text
-MySQL -> Python collector -> Spring Boot API
+MySQL -> Python collector -> Spring Boot API -> Vue frontend
 ```
 
 ### 1. 安装 Python 依赖
@@ -133,7 +150,27 @@ python coin_collector.py
 .\mvnw.cmd spring-boot:run
 ```
 
-默认服务地址：
+默认后端地址：
+
+```text
+http://localhost:8080
+```
+
+### 4. 启动 Vue 前端
+
+```powershell
+cd frontend\coin-market-web
+npm install
+npm run dev
+```
+
+默认前端地址：
+
+```text
+http://localhost:3000
+```
+
+开发环境下，前端 `/api` 请求会通过 Vite 代理到后端：
 
 ```text
 http://localhost:8080
@@ -160,6 +197,8 @@ http://localhost:8080
 - 历史价格请求状态日志
 - CoinGecko 常见限流响应识别
 - Fear & Greed 指数采集
+- Vue 前端基础展示
+- 前端开发代理配置
 - 基础缓存配置
 
 待完善：
@@ -169,6 +208,16 @@ http://localhost:8080
 - API 文档
 - Docker / docker-compose
 - 自动化测试
+- Android 客户端接入
+
+## 版本
+
+### v0.1 - 2026-05-16
+
+第一个正式版本。
+
+本版本包含后端 API、Python 数据采集脚本和 Vue 前端展示页面。
+项目已去除本地环境路径、明文数据库密码、构建产物和临时文件。
 
 ## 开发记录
 
