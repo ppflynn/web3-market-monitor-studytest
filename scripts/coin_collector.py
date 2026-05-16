@@ -1,7 +1,7 @@
 """
 Cryptocurrency Data Collector
-Fetches real-time data from Gate.io, Fear & Greed Index, and CoinGecko historical
-data, then stores everything into MySQL. Java Spring Boot reads from MySQL only.
+Fetches real-time data, Gate.io candlestick history, and Fear & Greed Index data,
+then stores everything into MySQL. Java Spring Boot reads from MySQL only.
 """
 import pymysql
 import requests
@@ -53,9 +53,11 @@ class Database:
                     coin_id VARCHAR(50) NOT NULL,
                     timestamp DATETIME NOT NULL,
                     price DOUBLE,
-                    INDEX idx_coin_id_timestamp (coin_id, timestamp)
+                    INDEX idx_coin_id_timestamp (coin_id, timestamp),
+                    UNIQUE KEY uk_coin_id_timestamp (coin_id, timestamp)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
+            self.ensure_price_points_unique_index(cur)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS fear_greed (
                     id INT PRIMARY KEY DEFAULT 1,
@@ -67,6 +69,28 @@ class Database:
             """)
             self.conn.commit()
         log.info("Database tables verified")
+
+    def ensure_price_points_unique_index(self, cur):
+        cur.execute("""
+            SELECT COUNT(1)
+            FROM information_schema.statistics
+            WHERE table_schema = DATABASE()
+              AND table_name = 'price_points'
+              AND index_name = 'uk_coin_id_timestamp'
+        """)
+        exists = cur.fetchone()[0]
+        if exists:
+            return
+
+        cur.execute("""
+            DELETE p1 FROM price_points p1
+            INNER JOIN price_points p2
+              ON p1.coin_id = p2.coin_id
+             AND p1.timestamp = p2.timestamp
+             AND p1.id > p2.id
+        """)
+        cur.execute("ALTER TABLE price_points ADD UNIQUE KEY uk_coin_id_timestamp (coin_id, timestamp)")
+        log.info("Added unique index uk_coin_id_timestamp to price_points")
 
     def upsert_coin(self, coin_id, symbol, name, price, change_pct):
         with self.conn.cursor() as cur:
@@ -87,6 +111,16 @@ class Database:
                        VALUES (%s, %s, %s, %s, 0, %s, NOW())""",
                     (coin_id, symbol, name, price, change_pct)
                 )
+        self.conn.commit()
+
+    def upsert_price_point(self, coin_id, timestamp, price):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO price_points (coin_id, timestamp, price)
+                   VALUES (%s, %s, %s)
+                   ON DUPLICATE KEY UPDATE price=VALUES(price)""",
+                (coin_id, timestamp, price)
+            )
         self.conn.commit()
 
     def batch_replace_price_points(self, coin_id, points):
@@ -179,7 +213,7 @@ def fetch_coingecko_history(coin_id, cg_id, days):
                 resp.text[:500]
             )
             if looks_rate_limited(resp):
-                log.warning("Possible API rate limit detected")
+                log.warning("\u53ef\u80fd\u89e6\u53d1 API \u9650\u6d41")
             return None
         prices = resp.json().get("prices", [])
         if not prices:
@@ -194,7 +228,74 @@ def fetch_coingecko_history(coin_id, cg_id, days):
         return None
 
 
-def collect_tickers(db):
+def parse_gateio_candle(entry):
+    """Return (timestamp, close_price) from Gate.io candlestick response."""
+    if isinstance(entry, dict):
+        timestamp = entry.get("t")
+        close_price = entry.get("c")
+    elif isinstance(entry, (list, tuple)) and len(entry) >= 3:
+        timestamp = entry[0]
+        close_price = entry[2]
+    else:
+        return None
+
+    try:
+        ts = datetime.fromtimestamp(int(float(timestamp)))
+        price = float(close_price)
+        return ts, price
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_gateio_history(coin_id, days):
+    pair = f"{coin_id.upper()}{config.USDT_SUFFIX}"
+    now = int(time.time())
+    start = now - days * 24 * 60 * 60
+    params = {
+        "currency_pair": pair,
+        "interval": config.HISTORY_CANDLE_INTERVAL,
+        "from": start,
+        "to": now
+    }
+
+    try:
+        log.info(
+            "Requesting Gate.io history price: coin_id=%s, pair=%s, days=%s, interval=%s",
+            coin_id,
+            pair,
+            days,
+            config.HISTORY_CANDLE_INTERVAL
+        )
+        resp = requests.get(config.GATEIO_CANDLESTICKS_URL, params=params, timeout=config.REQUEST_TIMEOUT)
+        log.info("Gate.io history HTTP status: coin_id=%s, status_code=%s", coin_id, resp.status_code)
+        if resp.status_code != 200:
+            log.error(
+                "Gate.io history request failed: coin_id=%s, pair=%s, days=%s, status_code=%s, response=%s",
+                coin_id,
+                pair,
+                days,
+                resp.status_code,
+                resp.text[:500]
+            )
+            return None
+
+        points = []
+        data = resp.json()
+        for entry in data:
+            parsed = parse_gateio_candle(entry)
+            if parsed:
+                points.append(parsed)
+        if not points:
+            sample = data[:2] if isinstance(data, list) else data
+            log.warning("Gate.io history response parsed zero points: coin_id=%s, sample=%s", coin_id, sample)
+        points.sort(key=lambda item: item[0])
+        return points
+    except Exception as e:
+        log.error("Failed Gate.io history for coin_id=%s, pair=%s (days=%s): %s", coin_id, pair, days, e)
+        return None
+
+
+def collect_tickers(db, record_history=False):
     log.info("Fetching Gate.io tickers...")
     data = fetch_gateio_tickers()
     if data is None:
@@ -231,9 +332,14 @@ def collect_tickers(db):
             change = 0.0
 
         db.upsert_coin(coin_id, symbol, name, price, change)
+        if record_history and price > 0:
+            snapshot_ts = datetime.now().replace(second=0, microsecond=0)
+            db.upsert_price_point(coin_id, snapshot_ts, price)
         count += 1
 
     log.info("Updated %d coins from Gate.io", count)
+    if record_history:
+        log.info("Recorded realtime price snapshot for %d coins", count)
     return [base.lower() for _, _, base in usdt_pairs]
 
 
@@ -251,7 +357,10 @@ def collect_history(db, coin_ids):
         cg_id = config.CG_ID_MAP.get(coin_id, coin_id)
         for days in config.HISTORY_DAYS_LIST:
             log.info("Fetching history for %s (%s days)...", coin_id, days)
-            points = fetch_coingecko_history(coin_id, cg_id, days)
+            if getattr(config, "HISTORY_SOURCE", "gateio").lower() == "coingecko":
+                points = fetch_coingecko_history(coin_id, cg_id, days)
+            else:
+                points = fetch_gateio_history(coin_id, days)
             if points is None or not points:
                 time.sleep(config.HISTORY_REQUEST_DELAY)
                 continue
@@ -267,10 +376,12 @@ def main():
 
     last_fng = 0
     last_history = 0
+    last_realtime_history = 0
     saved_coin_ids = []
 
     try:
-        saved_coin_ids = collect_tickers(db) or saved_coin_ids
+        saved_coin_ids = collect_tickers(db, record_history=True) or saved_coin_ids
+        last_realtime_history = time.time()
         collect_fear_greed(db)
         last_fng = time.time()
         if saved_coin_ids:
@@ -279,7 +390,10 @@ def main():
 
         while True:
             now = time.time()
-            saved_coin_ids = collect_tickers(db) or saved_coin_ids
+            should_record_history = now - last_realtime_history >= config.REALTIME_HISTORY_INTERVAL
+            saved_coin_ids = collect_tickers(db, record_history=should_record_history) or saved_coin_ids
+            if should_record_history:
+                last_realtime_history = now
 
             if now - last_fng >= config.FNG_INTERVAL:
                 collect_fear_greed(db)

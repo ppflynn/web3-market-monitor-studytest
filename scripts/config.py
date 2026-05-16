@@ -8,6 +8,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "coinmarketdb")
 
 GATEIO_TICKERS_URL = "https://api.gateio.ws/api/v4/spot/tickers"
+GATEIO_CANDLESTICKS_URL = "https://api.gateio.ws/api/v4/spot/candlesticks"
 FNG_URL = "https://api.alternative.me/fng/"
 COINGECKO_CHART_URL = "https://api.coingecko.com/api/v3/coins/{}/market_chart?vs_currency=usd&days={}"
 
@@ -30,7 +31,10 @@ CG_ID_MAP = {
 
 HISTORY_DAYS_LIST = [7]
 HISTORY_COIN_LIMIT = 5
+HISTORY_SOURCE = "gateio"
+HISTORY_CANDLE_INTERVAL = "1h"
 HISTORY_REQUEST_DELAY = 15
+REALTIME_HISTORY_INTERVAL = 300
 
 COLLECT_INTERVAL = 6
 FNG_INTERVAL = 15 * 60
