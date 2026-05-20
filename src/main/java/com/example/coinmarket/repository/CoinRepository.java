@@ -15,6 +15,8 @@ public interface CoinRepository extends JpaRepository<Coin, Long> {
 
     Optional<Coin> findBySymbolIgnoreCase(String symbol);
 
+    Optional<Coin> findTopByOrderByLastUpdatedDesc();
+
     Page<Coin> findAllByOrderByMarketCapDesc(Pageable pageable);
 
     Page<Coin> findByNameContainingIgnoreCaseOrSymbolContainingIgnoreCase(

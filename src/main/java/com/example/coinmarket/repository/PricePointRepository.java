@@ -19,6 +19,8 @@ public interface PricePointRepository extends JpaRepository<PricePoint, Long> {
 
     Optional<PricePoint> findTopByCoinIdOrderByTimestampDesc(String coinId);
 
+    Optional<PricePoint> findTopByOrderByTimestampDesc();
+
     @Modifying
     @Transactional
     @Query("DELETE FROM PricePoint p WHERE p.coinId = ?1 AND p.timestamp BETWEEN ?2 AND ?3")

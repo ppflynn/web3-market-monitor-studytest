@@ -33,3 +33,7 @@ export function getCoinHistory(coinId, days = 7) {
 export function getFearGreed() {
   return apiClient.get('/fear-greed')
 }
+
+export function getSystemStatus() {
+  return apiClient.get('/status')
+}

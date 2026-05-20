@@ -29,6 +29,25 @@
       </div>
     </div>
 
+    <div class="system-status-card" v-if="systemStatus">
+      <div class="status-item">
+        <span class="status-label">system_status</span>
+        <span class="status-value" :class="systemStatusClass">{{ systemStatusOf(systemStatus) }}</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">coin_count</span>
+        <span class="status-value">{{ numberOf(systemStatus, 'coin_count', 'coinCount') }}</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">price_point_count</span>
+        <span class="status-value">{{ numberOf(systemStatus, 'price_point_count', 'pricePointCount') }}</span>
+      </div>
+      <div class="status-item status-time">
+        <span class="status-label">latest_price_update</span>
+        <span class="status-value">{{ formatStatusTime(timeOf(systemStatus, 'latest_price_update', 'latestPriceUpdate')) }}</span>
+      </div>
+    </div>
+
     <el-alert
       v-if="error" :title="error" type="error" show-icon closable
       @close="error = ''" class="error-alert">
@@ -143,7 +162,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getCoinList, getFearGreed } from '../api/coin.js'
+import { getCoinList, getFearGreed, getSystemStatus } from '../api/coin.js'
 
 const router = useRouter()
 
@@ -152,6 +171,7 @@ const loading = ref(false)
 const error = ref('')
 const searchKeyword = ref('')
 const fng = ref(null)
+const systemStatus = ref(null)
 
 let pollTimer = null
 
@@ -175,7 +195,23 @@ const fngClass = computed(() => {
   return 'fng-extreme-greed'
 })
 
+const systemStatusClass = computed(() => {
+  const status = systemStatusOf(systemStatus.value).toLowerCase()
+  return status === 'ok' ? 'ok' : 'warn'
+})
+
 function safeProp(row, key) { return row ? (row[key] ?? '') : '' }
+function valueOf(row, snakeKey, camelKey) {
+  return row ? (row[snakeKey] ?? row[camelKey] ?? null) : null
+}
+function numberOf(row, snakeKey, camelKey) {
+  const value = valueOf(row, snakeKey, camelKey)
+  return value != null ? Number(value).toLocaleString('en-US') : '--'
+}
+function timeOf(row, snakeKey, camelKey) { return valueOf(row, snakeKey, camelKey) }
+function systemStatusOf(row) {
+  return row ? (row.system_status ?? row.systemStatus ?? row.status ?? '--') : '--'
+}
 function coinIdOf(row) { return safeProp(row, 'coin_id') || safeProp(row, 'coinId') }
 function nameOf(row) { return safeProp(row, 'name') }
 function symbolOf(row) {
@@ -252,6 +288,13 @@ function formatVolume(vol) {
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function formatStatusTime(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString()
+}
+
 const filteredCoins = computed(() => {
   const kw = searchKeyword.value.trim().toLowerCase()
   if (!kw) return allCoins.value
@@ -290,12 +333,23 @@ async function fetchFng() {
   }
 }
 
+async function fetchStatus() {
+  try {
+    const res = await getSystemStatus()
+    systemStatus.value = res.data?.data ?? res.data ?? null
+  } catch (err) {
+    console.error('Failed to fetch system status:', err)
+  }
+}
+
 onMounted(() => {
   fetchData()
   fetchFng()
+  fetchStatus()
   pollTimer = setInterval(() => {
     fetchData()
     fetchFng()
+    fetchStatus()
   }, 60000)
 })
 
@@ -462,6 +516,45 @@ onUnmounted(() => {
 
 .error-alert :deep(.el-alert__title) { color: #fca5a5; }
 
+.system-status-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+
+.status-item {
+  min-width: 0;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+}
+
+.status-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-value {
+  display: block;
+  overflow: hidden;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-value.ok { color: #34d399; }
+.status-value.warn { color: #fbbf24; }
+
 .skeleton-area { margin-top: 4px; }
 
 .glass-card {
@@ -589,6 +682,14 @@ onUnmounted(() => {
   }
 
   .search-box { width: 100%; }
+
+  .system-status-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-time {
+    grid-column: span 2;
+  }
 
   .fng-card {
     flex-direction: row;
