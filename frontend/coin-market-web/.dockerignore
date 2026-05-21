@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.idea/
+*.timestamp-*.mjs
+npm-debug.log*

@@ -1,6 +1,6 @@
 # CoinMarketCap Web3
 
-`v0.1.1` 在第一个正式版本基础上更新了历史数据采集逻辑，项目包含 Spring Boot 后端、Python 数据采集脚本和 Vue 3 前端。
+这是一个加密货币行情监控项目，包含 Spring Boot 后端、Python 数据采集脚本、Vue 3 前端和 Docker Compose 一键部署配置。
 
 当前版本不包含 Android 客户端。Android 项目后续会作为独立客户端继续整理。
 
@@ -16,6 +16,7 @@
 - 通过 Vue 前端展示币种列表、详情、历史价格图表和 Fear & Greed 指数
 - 提供系统状态接口，展示采集数据量和最近更新时间
 - Vue 首页展示系统状态卡片
+- 支持 Docker Compose 一键启动完整运行环境
 - 使用 Caffeine 对部分接口数据进行缓存
 
 ## 技术栈
@@ -66,7 +67,14 @@
 │  ├─ package.json
 │  ├─ package-lock.json
 │  ├─ vite.config.js
+│  ├─ Dockerfile
+│  ├─ .dockerignore
+│  ├─ nginx.docker.conf
 │  └─ nginx.conf
+├─ docker-compose.yml
+├─ Dockerfile
+├─ .dockerignore
+├─ DOCKER_GUIDE.md
 ├─ .mvn
 ├─ pom.xml
 ├─ mvnw.cmd
@@ -126,7 +134,74 @@ CREATE DATABASE coinmarketdb DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unico
 - 历史价格点，包括 K 线接口数据和实时价格快照兜底数据
 - Fear & Greed 指数
 
-## 启动方式
+## Docker 一键启动
+
+克隆仓库：
+
+```powershell
+git clone https://github.com/ppflynn/web3-market-monitor-studytest.git
+cd web3-market-monitor-studytest
+```
+
+推荐复制环境变量模板：
+
+```powershell
+copy .env.example .env
+```
+
+一键构建并启动 MySQL、后端、采集脚本和前端：
+
+```powershell
+docker compose up --build -d
+```
+
+启动后访问：
+
+```text
+前端页面: http://localhost:3000
+后端接口: http://localhost:8080
+MySQL: localhost:3307
+```
+
+查看服务状态：
+
+```powershell
+docker compose ps
+```
+
+查看日志：
+
+```powershell
+docker compose logs -f
+```
+
+停止服务：
+
+```powershell
+docker compose down
+```
+
+更多 Docker 使用说明见 [DOCKER_GUIDE.md](./DOCKER_GUIDE.md)。
+
+## 环境变量和密码
+
+公开仓库中只提供可运行的示例默认值。当前示例数据库密码为：
+
+```text
+CmWeb3_Docker_9Kq2pX7m_2026
+```
+
+这是公开演示配置，不应作为生产环境密码。正式部署时请复制 `.env.example` 为 `.env` 并修改：
+
+```text
+MYSQL_ROOT_PASSWORD
+DB_PASSWORD
+SPRING_DATASOURCE_PASSWORD
+```
+
+`.env` 已被 `.gitignore` 忽略，不会被提交。
+
+## 本地开发启动方式
 
 建议启动顺序：
 
@@ -207,6 +282,10 @@ http://localhost:8080
 - Vue 前端基础展示
 - Vue 首页系统状态卡片
 - 前端开发代理配置
+- Docker Compose 编排
+- 后端 Docker 镜像构建
+- Python 采集脚本 Docker 镜像构建
+- Vue 前端 Docker 镜像构建
 - 基础缓存配置
 
 待完善：
@@ -214,7 +293,6 @@ http://localhost:8080
 - 数据库初始化脚本
 - 更完整的异常重试策略
 - API 文档
-- Docker / docker-compose
 - 自动化测试
 - Android 客户端接入
 
@@ -260,3 +338,13 @@ http://localhost:8080
 后端新增 `GET /api/status` 接口，用于返回币种数量、历史价格点数量、最近币种更新时间、最近历史价格更新时间、Fear & Greed 当前值和整体运行状态。
 
 Vue 首页新增系统状态卡片，展示系统状态、币种数量、历史价格点数量和最近历史价格更新时间。状态卡片和币种列表一样会定时刷新，接口失败时只记录错误，不阻断原有币种列表展示。
+
+### 2026-05-21
+
+本次更新完成 Docker 化整理。
+
+新增 Docker Compose 编排，可以一次启动 MySQL、Spring Boot 后端、Python 采集脚本和 Vue 前端。新增后端、采集脚本和前端 Dockerfile，并补充 `DOCKER_GUIDE.md`。
+
+数据库连接配置改为环境变量优先，公开仓库提供较强的演示默认密码，同时支持通过 `.env` 覆盖。`.env` 不会提交到仓库。
+
+后端 `Coin` 实体补充数据库列名映射，避免 JPA 自动命名和 Python 写入字段不一致。

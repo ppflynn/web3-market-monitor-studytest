@@ -1,0 +1,13 @@
+target/
+.git/
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.mvn/
+mvnw
+mvnw.cmd
+frontend/
+scripts/
+*.log
