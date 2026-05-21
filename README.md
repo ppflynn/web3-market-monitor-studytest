@@ -298,6 +298,14 @@ http://localhost:8080
 
 ## 版本
 
+### v0.1.2 - 2026-05-21
+
+新增 Docker Compose 一键启动能力。
+
+本版本补充后端、Python 采集脚本和 Vue 前端的 Dockerfile，并提供 `docker-compose.yml` 统一编排 MySQL、后端 API、采集脚本和前端服务。克隆仓库后复制 `.env.example` 为 `.env`，即可通过 `docker compose up --build -d` 启动完整运行环境。
+
+README 和 `DOCKER_GUIDE.md` 已更新为 Docker 优先的部署说明。公开仓库保留较强的演示默认数据库密码，正式部署时应在 `.env` 中自行替换。
+
 ### v0.1.1 - 2026-05-16
 
 历史数据采集接口默认切换为 Gate.io 现货 K 线接口，减少对 CoinGecko 的依赖，缓解部分服务器环境无法访问原历史接口的问题。
