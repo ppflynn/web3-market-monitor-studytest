@@ -10,6 +10,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.Index;
 import javax.persistence.Table;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
@@ -19,7 +20,9 @@ import java.time.LocalDateTime;
 @Table(name = "price_points", indexes = {
         @Index(name = "idx_coin_id_timestamp", columnList = "coinId,timestamp")
 })
-public class PricePoint {
+public class PricePoint implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

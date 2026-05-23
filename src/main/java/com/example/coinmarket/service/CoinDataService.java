@@ -1,5 +1,6 @@
 package com.example.coinmarket.service;
 
+import com.example.coinmarket.config.CacheConfig;
 import com.example.coinmarket.entity.Coin;
 import com.example.coinmarket.entity.PricePoint;
 import com.example.coinmarket.repository.CoinRepository;
@@ -24,7 +25,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CoinDataService {
 
-    private static final String CACHE_NAME = "allCoins";
+    private static final String CACHE_NAME = CacheConfig.ALL_COINS_CACHE;
     private static final String CACHE_KEY = "coinList";
     private static final List<String> PRIORITY_COIN_IDS = Arrays.asList(
             "btc", "eth", "bnb", "sol", "xrp", "ada", "doge", "dot", "link",
@@ -35,7 +36,6 @@ public class CoinDataService {
     private final CoinRepository coinRepository;
     private final PricePointRepository pricePointRepository;
     private final CacheManager cacheManager;
-    private final Cache pricePointsCache;
 
     @Cacheable(value = CACHE_NAME, key = "'coinList'")
     public List<Coin> getAllCoins() {
@@ -49,8 +49,9 @@ public class CoinDataService {
 
     public List<PricePoint> getHistoricalPrices(String coinId, int days) {
         String cacheKey = coinId + ":" + days;
+        Cache pricePointsCache = cacheManager.getCache(CacheConfig.PRICE_POINTS_CACHE);
         @SuppressWarnings("unchecked")
-        List<PricePoint> cached = pricePointsCache.get(cacheKey, List.class);
+        List<PricePoint> cached = pricePointsCache == null ? null : pricePointsCache.get(cacheKey, List.class);
         if (cached != null) {
             log.debug("Cache hit for historical prices: coinId={}, days={}", coinId, days);
             return cached;
@@ -63,7 +64,9 @@ public class CoinDataService {
         List<PricePoint> points = pricePointRepository.findByCoinIdAndTimestampBetweenOrderByTimestampAsc(
                 coinId, from, to);
 
-        pricePointsCache.put(cacheKey, points);
+        if (pricePointsCache != null) {
+            pricePointsCache.put(cacheKey, points);
+        }
         log.info("Historical prices loaded from DB and cached: coinId={}, count={}", coinId, points.size());
         return points;
     }

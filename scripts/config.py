@@ -4,7 +4,7 @@ import os
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "CmWeb3_Docker_9Kq2pX7m_2026")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "CmkDb_2026_R9vQ7mT4zP8sL2nX")
 DB_NAME = os.getenv("DB_NAME", "coinmarketdb")
 
 GATEIO_TICKERS_URL = "https://api.gateio.ws/api/v4/spot/tickers"

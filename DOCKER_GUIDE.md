@@ -1,11 +1,12 @@
 # Docker 部署指南
 
-本项目已经整理为 Docker Compose 部署方式，可以一次启动 MySQL、Spring Boot 后端、Python 数据采集脚本和 Vue 前端。
+本项目已经整理为 Docker Compose 部署方式，可以一次启动 MySQL、Redis、Spring Boot 后端、Python 数据采集脚本和 Vue 前端。
 
 ## 服务组成
 
 ```text
 mysql      MySQL 8 数据库
+redis      Redis 7 缓存服务
 backend    Spring Boot REST API
 collector  Python 行情数据采集脚本
 frontend   Vue 前端 + Nginx
@@ -38,6 +39,7 @@ docker compose up --build -d
 前端页面: http://localhost:3000
 后端接口: http://localhost:8080
 MySQL: localhost:3307
+Redis: localhost:6379
 ```
 
 ## 环境变量
@@ -47,7 +49,7 @@ MySQL: localhost:3307
 默认示例密码：
 
 ```text
-CmWeb3_Docker_9Kq2pX7m_2026
+CmkDb_2026_R9vQ7mT4zP8sL2nX
 ```
 
 这是公开仓库中的演示默认值，不应作为生产环境密码。正式部署时请复制 `.env.example` 为 `.env` 并修改：
@@ -56,6 +58,8 @@ CmWeb3_Docker_9Kq2pX7m_2026
 MYSQL_ROOT_PASSWORD
 DB_PASSWORD
 SPRING_DATASOURCE_PASSWORD
+SPRING_REDIS_HOST
+SPRING_REDIS_PORT
 ```
 
 `.env` 已被 `.gitignore` 忽略，不会被提交。
@@ -81,6 +85,7 @@ docker compose logs -f backend
 docker compose logs -f collector
 docker compose logs -f frontend
 docker compose logs -f mysql
+docker compose logs -f redis
 ```
 
 停止服务：
@@ -123,6 +128,7 @@ docker compose down -v
 3000 -> frontend
 8080 -> backend
 3307 -> mysql
+6379 -> redis
 ```
 
 容器内部访问 MySQL 使用：
@@ -135,6 +141,18 @@ mysql:3306
 
 ```text
 localhost:3307
+```
+
+容器内部访问 Redis 使用：
+
+```text
+redis:6379
+```
+
+本机访问 Redis 使用：
+
+```text
+localhost:6379
 ```
 
 ## 部署文件
