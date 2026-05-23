@@ -1,7 +1,7 @@
 <template>
   <div class="coin-detail-page">
     <div class="detail-header">
-      <el-button class="back-btn" @click="goBack" :icon="ArrowLeft" text>Back</el-button>
+      <el-button class="back-btn" @click="goBack" :icon="ArrowLeft" text>返回</el-button>
       <div class="coin-info" v-if="coin">
         <div class="coin-icon-fallback" :style="{ background: coinColor(coin) }">
           {{ coinInitial(coin) }}
@@ -20,11 +20,11 @@
 
     <div v-loading="detailLoading" class="stats-grid">
       <div class="stat-card">
-        <span class="stat-label">Price</span>
+        <span class="stat-label">当前价格</span>
         <span class="stat-value price-value">{{ formatPrice(coin?.current_price) }}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">24h Change</span>
+        <span class="stat-label">24小时涨跌</span>
         <span class="stat-value" :class="changeClass(coin?.price_change_percentage_24h)">
           <el-icon v-if="coin?.price_change_percentage_24h > 0"><CaretTop /></el-icon>
           <el-icon v-else-if="coin?.price_change_percentage_24h < 0"><CaretBottom /></el-icon>
@@ -32,18 +32,19 @@
         </span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Market Cap</span>
+        <span class="stat-label">市值</span>
         <span class="stat-value">{{ formatMarketCap(coin?.market_cap) }}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Last Updated</span>
+        <span class="stat-label">最后更新</span>
         <span class="stat-value stat-time">{{ formatTime(coin?.last_updated) }}</span>
       </div>
     </div>
 
     <div class="chart-section">
       <div class="chart-header">
-        <h2 class="chart-title">Price Chart</h2>
+        <h2 class="chart-title">价格走势</h2>
+        <el-button type="primary" size="small" @click="openAiAssistant">AI 助手</el-button>
         <el-button-group class="time-toggle">
           <el-button
             :type="selectedDays === 7 ? 'primary' : 'default'"
@@ -62,7 +63,7 @@
           class="chart"
         />
         <div v-else-if="!chartLoading" class="chart-empty">
-          <el-empty description="No history data available" />
+          <el-empty description="暂无历史数据" />
         </div>
       </div>
     </div>
@@ -135,16 +136,26 @@ function formatMarketCap(cap) {
 }
 
 function formatTime(time) {
-  if (!time) return 'N/A'
+  if (!time) return '暂无'
   const d = new Date(time)
   if (isNaN(d.getTime())) return time
-  return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
+  return d.toLocaleString('zh-CN', {
+    month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false
   })
 }
 
 function goBack() { router.push({ name: 'CoinList' }) }
+
+function openAiAssistant() {
+  router.push({
+    name: 'AiAssistant',
+    query: {
+      q: `${coin.value?.symbol || route.params.coinId} 最近走势怎么看？请只做信息分析，不要给投资建议。`
+    }
+  })
+}
 
 function selectDays(days) { selectedDays.value = days; fetchHistory() }
 

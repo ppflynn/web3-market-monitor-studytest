@@ -1,6 +1,6 @@
 # Docker 部署指南
 
-本项目已经整理为 Docker Compose 部署方式，可以一次启动 MySQL、Redis、Spring Boot 后端、Python 数据采集脚本和 Vue 前端。
+本项目已经整理为 Docker Compose 部署方式，可以一次启动 MySQL、Redis、Spring Boot 后端、Python 数据采集脚本、FastAPI AI 服务和 Vue 前端。
 
 ## 服务组成
 
@@ -9,6 +9,7 @@ mysql      MySQL 8 数据库
 redis      Redis 7 缓存服务
 backend    Spring Boot REST API
 collector  Python 行情数据采集脚本
+ai         FastAPI AI 智能分析服务
 frontend   Vue 前端 + Nginx
 ```
 
@@ -38,6 +39,8 @@ docker compose up --build -d
 ```text
 前端页面: http://localhost:3000
 后端接口: http://localhost:8080
+AI 服务: http://localhost:8000
+AI 页面: http://localhost:3000/ai
 MySQL: localhost:3307
 Redis: localhost:6379
 ```
@@ -60,9 +63,13 @@ DB_PASSWORD
 SPRING_DATASOURCE_PASSWORD
 SPRING_REDIS_HOST
 SPRING_REDIS_PORT
+DEEPSEEK_API_KEY
+AI_API_KEY
 ```
 
 `.env` 已被 `.gitignore` 忽略，不会被提交。
+
+AI 服务可以不配置真实 API Key 启动，但聊天接口会提示需要设置 Key。需要调用大模型时，请在本地 `.env` 中填写 `DEEPSEEK_API_KEY` 或 `AI_API_KEY`。
 
 ## 常用命令
 
@@ -86,6 +93,7 @@ docker compose logs -f collector
 docker compose logs -f frontend
 docker compose logs -f mysql
 docker compose logs -f redis
+docker compose logs -f ai
 ```
 
 停止服务：
@@ -127,6 +135,7 @@ docker compose down -v
 ```text
 3000 -> frontend
 8080 -> backend
+8000 -> ai
 3307 -> mysql
 6379 -> redis
 ```
@@ -155,6 +164,18 @@ redis:6379
 localhost:6379
 ```
 
+容器内部访问 AI 服务使用：
+
+```text
+ai:8000
+```
+
+本机访问 AI 服务使用：
+
+```text
+localhost:8000
+```
+
 ## 部署文件
 
 ```text
@@ -166,11 +187,14 @@ scripts/.dockerignore
 frontend/coin-market-web/Dockerfile
 frontend/coin-market-web/.dockerignore
 frontend/coin-market-web/nginx.docker.conf
+fastapi-ai/Dockerfile
+fastapi-ai/.dockerignore
 ```
 
 ## 注意事项
 
 - 不要提交真实 `.env` 文件。
+- 不要提交真实大模型 API Key。
 - 公开仓库中的密码只是演示默认值，正式部署请修改。
 - 如果本机已经有 MySQL 占用 `3307`，请在 `.env` 中修改 `MYSQL_PORT`。
-- 如果本机已经有服务占用 `3000` 或 `8080`，请在 `.env` 中修改 `FRONTEND_PORT` 或 `BACKEND_PORT`。
+- 如果本机已经有服务占用 `3000`、`8000` 或 `8080`，请在 `.env` 中修改 `FRONTEND_PORT`、`AI_PORT` 或 `BACKEND_PORT`。
