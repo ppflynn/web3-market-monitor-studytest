@@ -65,11 +65,16 @@ SPRING_REDIS_HOST
 SPRING_REDIS_PORT
 DEEPSEEK_API_KEY
 AI_API_KEY
+RAG_ENABLED
+RAG_ROOT_PATH
+MARKET_TOOLS_ENABLED
 ```
 
 `.env` 已被 `.gitignore` 忽略，不会被提交。
 
 AI 服务可以不配置真实 API Key 启动，但聊天接口会提示需要设置 Key。需要调用大模型时，请在本地 `.env` 中填写 `DEEPSEEK_API_KEY` 或 `AI_API_KEY`。
+
+AI 服务默认启用本地项目 RAG 和结构化行情工具层。Docker Compose 会把项目目录只读挂载到 AI 容器的 `/workspace`，并设置 `RAG_ROOT_PATH=/workspace`。RAG 会按 `.env.example` 中的 `RAG_INCLUDE_PATHS` 和 `RAG_EXCLUDE_DIRS` 检索公开仓库源码，不会扫描 `.git`、`.env`、`node_modules`、`target`、`dist` 等目录。
 
 ## 常用命令
 
@@ -176,6 +181,20 @@ ai:8000
 localhost:8000
 ```
 
+AI 容器内的 RAG 项目目录：
+
+```text
+/workspace
+```
+
+AI 调试接口：
+
+```text
+GET  http://localhost:8000/api/ai/tools
+POST http://localhost:8000/api/ai/tools/run
+POST http://localhost:8000/api/ai/rag/search
+```
+
 ## 部署文件
 
 ```text
@@ -189,6 +208,7 @@ frontend/coin-market-web/.dockerignore
 frontend/coin-market-web/nginx.docker.conf
 fastapi-ai/Dockerfile
 fastapi-ai/.dockerignore
+fastapi-ai/.env.example
 ```
 
 ## 注意事项

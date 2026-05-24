@@ -1,8 +1,19 @@
 from fastapi import APIRouter, Depends
 
 from app.config import Settings, get_settings
-from app.schemas.chat import ChatRequest, ChatResponse, HealthResponse
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    HealthResponse,
+    RagSearchRequest,
+    RagSearchResponse,
+    ToolDefinition,
+    ToolRunRequest,
+    ToolRunResponse,
+)
 from app.services.llm_service import LLMService
+from app.services.market_tool_service import MarketToolService
+from app.services.rag_service import RagService
 
 router = APIRouter()
 
@@ -10,8 +21,8 @@ router = APIRouter()
 @router.get(
     "/health",
     response_model=HealthResponse,
-    summary="健康检查",
-    description="检查 FastAPI AI 服务是否正常运行，并返回当前是否已经配置 LLM API Key。",
+    summary="Health check",
+    description="Check whether the FastAPI AI service is running and whether an LLM API key is configured.",
 )
 async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     return HealthResponse(
@@ -25,8 +36,8 @@ async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
 @router.post(
     "/chat",
     response_model=ChatResponse,
-    summary="LLM 聊天中转",
-    description="接收用户问题，统一转发到 OpenAI 兼容的大模型接口，并返回 AI 回答。",
+    summary="LLM chat with market data and project RAG",
+    description="Answer user questions with Spring Boot market context and local project RAG snippets.",
 )
 async def chat(
     request: ChatRequest,
@@ -34,3 +45,46 @@ async def chat(
 ) -> ChatResponse:
     service = LLMService(settings)
     return await service.chat(request)
+
+
+@router.post(
+    "/rag/search",
+    response_model=RagSearchResponse,
+    summary="Search local project RAG corpus",
+    description="Return the project files and snippets that would be used as RAG context.",
+)
+async def rag_search(
+    request: RagSearchRequest,
+    settings: Settings = Depends(get_settings),
+) -> RagSearchResponse:
+    sources = RagService(settings).search(request.query)
+    return RagSearchResponse(query=request.query, sources=sources)
+
+
+@router.get(
+    "/tools",
+    response_model=list[ToolDefinition],
+    summary="List market tools",
+    description="Return available market-data tools backed by the Spring Boot API.",
+)
+async def list_tools(settings: Settings = Depends(get_settings)) -> list[ToolDefinition]:
+    tools = MarketToolService(settings).list_tools()
+    return [ToolDefinition(**tool) for tool in tools]
+
+
+@router.post(
+    "/tools/run",
+    response_model=ToolRunResponse,
+    summary="Run market tools",
+    description="Run a specific market tool or auto-select tools from a user query.",
+)
+async def run_tools(
+    request: ToolRunRequest,
+    settings: Settings = Depends(get_settings),
+) -> ToolRunResponse:
+    service = MarketToolService(settings)
+    if request.tool_name:
+        result = await service.call_tool(request.tool_name, request.arguments)
+    else:
+        result = await service.execute_for_question(request.query or "")
+    return ToolRunResponse(query=request.query, context=result.context_text, calls=result.calls)

@@ -5,13 +5,19 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.spring_api_service import SpringApiService
+from app.services.market_tool_service import MarketToolService
+from app.services.rag_service import RagService
 
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是 CoinMarketCap Web3 项目的 AI 助手。"
-    "回答要准确、简洁，遇到行情相关问题时提醒用户内容仅用于信息分析，"
-    "不能作为投资建议。"
+    "You are the AI assistant for the CoinMarketCap Web3 project. "
+    "Answer in the same language as the user. Be accurate and concise. "
+    "For market analysis, prioritize project data and remind the user that the content is for "
+    "information analysis only and is not investment advice. "
+    "When Market tool context is provided, treat it as the authoritative source for current prices, "
+    "rankings, history, and sentiment. "
+    "For project/code questions, use the Project RAG context when it is relevant. "
+    "Do not invent files, APIs, or implementation details that are not present in the context."
 )
 
 
@@ -20,19 +26,27 @@ class LLMService:
         self.settings = settings
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
+        rag_result = RagService(self.settings).build_context(request.message)
+        tool_result = await MarketToolService(self.settings).execute_for_question(request.message)
+
         if not self.settings.api_key:
             return ChatResponse(
                 answer=(
-                    "FastAPI AI 服务已经启动，但还没有配置 API Key。"
-                    "请复制 .env.example 为 .env，并填写 DEEPSEEK_API_KEY 或 AI_API_KEY、"
-                    "AI_BASE_URL、AI_MODEL 后重试。"
+                    "FastAPI AI 服务已经启动，但还没有配置 API Key。请复制 "
+                    "fastapi-ai/.env.example 为 fastapi-ai/.env，并填写 AI_API_KEY "
+                    "或 DEEPSEEK_API_KEY 后重试。"
                 ),
                 model=self.settings.ai_model,
                 setup_required=True,
+                sources=rag_result.sources,
+                tools=tool_result.calls,
             )
 
-        data_context = await SpringApiService(self.settings).build_market_context(request.message)
-        payload = self._build_payload(request, data_context)
+        payload = self._build_payload(
+            request=request,
+            market_context=tool_result.context_text,
+            rag_context=rag_result.context_text,
+        )
         headers = {
             "Authorization": f"Bearer {self.settings.api_key}",
             "Content-Type": "application/json",
@@ -61,13 +75,22 @@ class LLMService:
             answer=answer,
             model=data.get("model", self.settings.ai_model),
             usage=data.get("usage"),
+            sources=rag_result.sources,
+            tools=tool_result.calls,
         )
 
-    def _build_payload(self, request: ChatRequest, data_context: str | None = None) -> dict[str, Any]:
+    def _build_payload(
+        self,
+        request: ChatRequest,
+        market_context: str | None = None,
+        rag_context: str | None = None,
+    ) -> dict[str, Any]:
         system_prompt = request.system_prompt or DEFAULT_SYSTEM_PROMPT
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
-        if data_context:
-            messages.append({"role": "system", "content": data_context})
+        if market_context:
+            messages.append({"role": "system", "content": market_context})
+        if rag_context:
+            messages.append({"role": "system", "content": rag_context})
         messages.extend(message.model_dump() for message in request.history)
         messages.append({"role": "user", "content": request.message})
 

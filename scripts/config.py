@@ -1,8 +1,9 @@
 import os
 
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "Asia/Shanghai")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
+DB_PORT = int(os.getenv("DB_PORT", "3307"))
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "CmkDb_2026_R9vQ7mT4zP8sL2nX")
 DB_NAME = os.getenv("DB_NAME", "coinmarketdb")

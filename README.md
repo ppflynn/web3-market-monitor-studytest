@@ -16,7 +16,10 @@
 - 使用 Redis 缓存币种列表和历史价格等高频读取数据
 - 通过 Vue 前端展示币种列表、详情、历史价格图表和 Fear & Greed 指数
 - 提供 FastAPI AI 服务，可读取项目行情数据并调用 DeepSeek / OpenAI 兼容大模型生成分析回答
+- FastAPI AI 服务新增本地项目 RAG，可检索 README、后端、前端、脚本和 AI 服务源码片段
+- FastAPI AI 服务新增结构化行情工具层，可查询币种列表、详情、历史价格、Fear & Greed、搜索和涨跌榜
 - Vue 前端提供 AI 助手页面，并在币种详情页提供跳转入口
+- Vue AI 助手会展示本次回答参考的 RAG 来源文件和执行过的工具
 - 提供系统状态接口，展示采集数据量和最近更新时间
 - Vue 首页展示系统状态卡片
 - 支持 Docker Compose 一键启动完整运行环境
@@ -114,6 +117,8 @@ External APIs
 AI analysis:
 Vue /ai page
     -> FastAPI AI service
+    -> Project RAG snippets
+    -> Market tools
     -> Spring Boot API
     -> MySQL / Redis market data
     -> DeepSeek / OpenAI-compatible LLM
@@ -141,6 +146,7 @@ DB_PORT
 DB_USER
 DB_PASSWORD
 DB_NAME
+APP_TIMEZONE
 ```
 
 FastAPI AI 服务使用：
@@ -158,6 +164,20 @@ AI_THINKING_ENABLED
 AI_REASONING_EFFORT
 SPRING_API_BASE_URL
 SPRING_API_TIMEOUT_SECONDS
+RAG_ENABLED
+RAG_ROOT_PATH
+RAG_INCLUDE_PATHS
+RAG_EXCLUDE_DIRS
+RAG_MAX_FILES
+RAG_MAX_FILE_BYTES
+RAG_CHUNK_CHARS
+RAG_SNIPPET_CHARS
+RAG_MAX_SOURCES
+RAG_MIN_SCORE
+MARKET_TOOLS_ENABLED
+MARKET_TOOL_DEFAULT_HISTORY_DAYS
+MARKET_TOOL_MAX_HISTORY_DAYS
+MARKET_TOOL_MAX_CONTEXT_CHARS
 ```
 
 ## 数据库
@@ -345,7 +365,10 @@ http://localhost:8000
 | GET | `/api/fear-greed` | 获取 Fear & Greed 指数 |
 | GET | `/api/status` | 获取系统数据采集和运行状态 |
 | GET | `/api/ai/health` | 获取 FastAPI AI 服务状态 |
-| POST | `/api/ai/chat` | 调用 AI 助手，先读取项目行情数据，再请求大模型生成回答 |
+| POST | `/api/ai/chat` | 调用 AI 助手，执行 RAG 检索和行情工具调用后请求大模型生成回答 |
+| POST | `/api/ai/rag/search` | 调试 RAG 检索结果，不调用外部大模型 |
+| GET | `/api/ai/tools` | 查看当前可用的结构化行情工具 |
+| POST | `/api/ai/tools/run` | 调试工具调用层，可自动选工具或指定工具执行 |
 
 ## 当前状态
 
@@ -370,12 +393,17 @@ http://localhost:8000
 - FastAPI AI 服务
 - FastAPI 健康检查和聊天接口
 - FastAPI 读取 Spring Boot 行情数据后调用大模型
+- FastAPI 本地项目 RAG 检索
+- FastAPI 结构化行情工具调用层
+- AI 聊天响应返回 RAG `sources` 和工具 `tools`
 - Docker Compose 编排
 - Redis Docker Compose 服务
 - FastAPI AI Docker Compose 服务
+- Docker Compose 为 AI 服务只读挂载项目目录供 RAG 检索
 - 后端 Docker 镜像构建
 - Python 采集脚本 Docker 镜像构建
 - Vue 前端 Docker 镜像构建
+- 前端统一上海时区时间展示
 - 基础缓存配置
 
 待完善：
@@ -385,9 +413,20 @@ http://localhost:8000
 - API 文档
 - 自动化测试
 - Android 客户端接入
-- AI 提示词、工具调用和权限控制继续完善
+- 模型原生 function calling / tool calling
+- RAG 检索质量、权限控制和知识库结构继续完善
 
 ## 版本
+
+### v0.14 - 2026-05-24
+
+新增 FastAPI AI 的 RAG 和结构化行情工具调用能力。
+
+本版本新增 `rag_service.py`，以轻量本地检索方式从 README、FastAPI 服务、Spring Boot 后端、Vue 前端和 Python 采集脚本中检索相关片段，并把命中的项目文件作为 RAG 上下文注入 AI 聊天。`POST /api/ai/chat` 响应新增 `sources` 字段，前端 AI 助手会展示本次回答参考过的来源文件。
+
+本版本新增 `market_tool_service.py`，提供 `list_market_coins`、`get_coin_detail`、`get_coin_history`、`get_fear_greed`、`search_coins` 和 `get_top_movers` 六个结构化行情工具。AI 聊天会按用户问题自动选择工具并返回 `tools` 字段；同时新增 `POST /api/ai/rag/search`、`GET /api/ai/tools`、`POST /api/ai/tools/run` 作为调试接口。
+
+Docker Compose 为 `ai` 服务增加只读项目目录挂载和 `RAG_ROOT_PATH=/workspace`，确保容器内也能检索公开仓库代码。`.env.example` 已补充 RAG 和工具层配置项，真实大模型 API Key 仍只保留在本地 `.env`。
 
 ### v0.13 - 2026-05-23
 
@@ -471,3 +510,13 @@ Docker Compose 新增 `redis` 服务，后端容器通过 `SPRING_REDIS_HOST=red
 新增 `fastapi-ai` 独立服务，包含 FastAPI 应用入口、配置层、路由层、schema 层、service 层和 prompt 文件。AI 服务支持健康检查和聊天接口，聊天时会先读取 Spring Boot 暴露的真实行情数据，再调用 DeepSeek / OpenAI 兼容大模型生成回答。
 
 Vue 前端新增 AI 助手页面，币种详情页新增 AI 助手入口。开发环境下 Vite 会将 `/api/ai` 代理到 FastAPI，Docker 环境下 Nginx 会将 `/api/ai` 转发到 `ai:8000`。本次同步只提交 `.env.example`，真实 API Key 保留在本地 `.env` 中。
+
+### 2026-05-24
+
+本次更新新增 FastAPI AI 的 RAG 第一版能力和结构化行情工具调用层。
+
+RAG 层通过 `rag_service.py` 从项目 README、后端、前端、脚本和 FastAPI 服务源码中检索相关片段，用于回答项目结构、接口设计、配置含义和运行方式等问题。新增 `POST /api/ai/rag/search` 调试接口，可以只查看命中的项目文件片段，不调用外部大模型。
+
+工具层通过 `market_tool_service.py` 统一封装 Spring Boot 行情接口，提供币种列表、币种详情、历史价格、Fear & Greed、币种搜索和涨跌榜等工具。AI 聊天会根据用户问题自动选择工具，并在响应中返回执行过的 `tools`。
+
+Vue AI 助手页面已展示 RAG 来源文件和工具调用标签。Docker Compose 为 AI 服务增加只读项目目录挂载，并设置 `RAG_ROOT_PATH=/workspace`，让容器内 RAG 可以检索公开仓库代码。

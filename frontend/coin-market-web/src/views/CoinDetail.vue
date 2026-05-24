@@ -77,6 +77,7 @@ import { ArrowLeft, CaretTop, CaretBottom } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
 import { getCoinDetail, getCoinHistory } from '../api/coin.js'
+import { formatAppDateTime, formatAppShortDate } from '../utils/time.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -136,14 +137,7 @@ function formatMarketCap(cap) {
 }
 
 function formatTime(time) {
-  if (!time) return '暂无'
-  const d = new Date(time)
-  if (isNaN(d.getTime())) return time
-  return d.toLocaleString('zh-CN', {
-    month: 'numeric', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-    hour12: false
-  })
+  return formatAppDateTime(time, '暂无')
 }
 
 function goBack() { router.push({ name: 'CoinList' }) }
@@ -162,8 +156,7 @@ function selectDays(days) { selectedDays.value = days; fetchHistory() }
 const chartOption = computed(() => {
   if (!historyData.value.length) return null
   const dates = historyData.value.map(d => {
-    const date = new Date(d.timestamp || d.date || d.time)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return formatAppShortDate(d.timestamp || d.date || d.time)
   })
   const prices = historyData.value.map(d => d.price ?? d.close ?? d.value)
   const lineColor = prices.length > 1 && prices[prices.length - 1] >= prices[0] ? '#34d399' : '#f87171'

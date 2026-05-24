@@ -8,14 +8,14 @@
       </div>
       <div class="header-right">
         <div class="fng-card" v-if="fng" :class="fngClass">
-          <span class="fng-label">Fear & Greed</span>
+          <span class="fng-label">恐惧与贪婪</span>
           <div class="fng-meter">
             <div class="fng-bar">
               <div class="fng-fill" :style="{ width: fng.value + '%' }"></div>
             </div>
             <span class="fng-value">{{ fng.value }}</span>
           </div>
-          <span class="fng-class">{{ fng.classification }}</span>
+          <span class="fng-class">{{ fngClassificationLabel(fng.classification) }}</span>
         </div>
         <div class="search-box">
           <el-input
@@ -31,19 +31,19 @@
 
     <div class="system-status-card" v-if="systemStatus">
       <div class="status-item">
-        <span class="status-label">system_status</span>
+        <span class="status-label">系统状态</span>
         <span class="status-value" :class="systemStatusClass">{{ systemStatusOf(systemStatus) }}</span>
       </div>
       <div class="status-item">
-        <span class="status-label">coin_count</span>
+        <span class="status-label">币种数量</span>
         <span class="status-value">{{ numberOf(systemStatus, 'coin_count', 'coinCount') }}</span>
       </div>
       <div class="status-item">
-        <span class="status-label">price_point_count</span>
+        <span class="status-label">价格点数量</span>
         <span class="status-value">{{ numberOf(systemStatus, 'price_point_count', 'pricePointCount') }}</span>
       </div>
       <div class="status-item status-time">
-        <span class="status-label">latest_price_update</span>
+        <span class="status-label">最近价格更新</span>
         <span class="status-value">{{ formatStatusTime(timeOf(systemStatus, 'latest_price_update', 'latestPriceUpdate')) }}</span>
       </div>
     </div>
@@ -135,7 +135,7 @@
           </div>
           <div class="mc-bottom">
             <div class="mc-stat">
-              <span class="mc-label">Price</span>
+              <span class="mc-label">价格</span>
               <span class="price-text">{{ formatPrice(priceOf(row)) }}</span>
             </div>
             <div class="mc-stat">
@@ -145,7 +145,7 @@
               </span>
             </div>
             <div class="mc-stat">
-              <span class="mc-label">Vol</span>
+              <span class="mc-label">成交量</span>
               <span class="volume-text">{{ formatVolume(volumeOf(row)) }}</span>
             </div>
           </div>
@@ -163,6 +163,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCoinList, getFearGreed, getSystemStatus } from '../api/coin.js'
+import { formatAppDateTime } from '../utils/time.js'
 
 const router = useRouter()
 
@@ -211,6 +212,16 @@ function numberOf(row, snakeKey, camelKey) {
 function timeOf(row, snakeKey, camelKey) { return valueOf(row, snakeKey, camelKey) }
 function systemStatusOf(row) {
   return row ? (row.system_status ?? row.systemStatus ?? row.status ?? '--') : '--'
+}
+
+function fngClassificationLabel(value) {
+  const text = String(value || '').toLowerCase()
+  if (text.includes('extreme fear')) return '极度恐惧'
+  if (text.includes('fear')) return '恐惧'
+  if (text.includes('neutral')) return '中性'
+  if (text.includes('extreme greed')) return '极度贪婪'
+  if (text.includes('greed')) return '贪婪'
+  return value || '--'
 }
 function coinIdOf(row) { return safeProp(row, 'coin_id') || safeProp(row, 'coinId') }
 function nameOf(row) { return safeProp(row, 'name') }
@@ -289,10 +300,7 @@ function formatVolume(vol) {
 }
 
 function formatStatusTime(value) {
-  if (!value) return '--'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleString()
+  return formatAppDateTime(value)
 }
 
 const filteredCoins = computed(() => {

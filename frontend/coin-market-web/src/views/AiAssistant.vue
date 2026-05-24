@@ -39,6 +39,16 @@
           <div v-for="message in messages" :key="message.id" class="message" :class="message.role">
             <span class="message-role">{{ message.role === 'user' ? '你' : 'AI' }}</span>
             <p>{{ message.content }}</p>
+            <ul v-if="message.sources?.length" class="message-sources">
+              <li v-for="source in message.sources" :key="`${source.path}-${source.score}`">
+                <code>{{ source.path }}</code>
+              </li>
+            </ul>
+            <ul v-if="message.tools?.length" class="message-tools">
+              <li v-for="tool in message.tools" :key="`${tool.name}-${JSON.stringify(tool.arguments)}`">
+                <code>{{ tool.name }}</code>
+              </li>
+            </ul>
           </div>
         </div>
 
@@ -147,7 +157,9 @@ async function submit() {
     messages.value.push({
       id: Date.now() + 1,
       role: 'assistant',
-      content: res.data?.answer || 'AI 没有返回内容。'
+      content: res.data?.answer || 'AI 没有返回内容。',
+      sources: res.data?.sources || [],
+      tools: res.data?.tools || []
     })
   } catch (err) {
     const detail = err.response?.data?.detail
@@ -313,6 +325,52 @@ onMounted(() => {
 .message.user p {
   color: #eef6ff;
   background: rgba(37,99,235,0.28);
+}
+
+.message-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message-sources code {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 7px;
+  border: 1px solid rgba(96,165,250,0.26);
+  border-radius: 6px;
+  color: #93c5fd;
+  background: rgba(15,23,42,0.65);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.message-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message-tools code {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 7px;
+  border: 1px solid rgba(52,211,153,0.26);
+  border-radius: 6px;
+  color: #86efac;
+  background: rgba(6,78,59,0.22);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .composer {

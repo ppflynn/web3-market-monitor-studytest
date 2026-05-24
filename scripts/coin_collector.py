@@ -1,7 +1,7 @@
 """
 Cryptocurrency Data Collector
-Fetches real-time data, Gate.io candlestick history, and Fear & Greed Index data,
-then stores everything into MySQL. Java Spring Boot reads from MySQL only.
+Fetches real-time data from Gate.io, Fear & Greed Index, and CoinGecko historical
+data, then stores everything into MySQL. Java Spring Boot reads from MySQL only.
 """
 import pymysql
 import requests
@@ -9,6 +9,7 @@ import time
 import logging
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import config
 
@@ -18,6 +19,19 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 log = logging.getLogger("collector")
+APP_TZ = ZoneInfo(config.APP_TIMEZONE)
+
+
+def app_now():
+    return datetime.now(APP_TZ).replace(tzinfo=None)
+
+
+def from_unix_ms(timestamp_ms):
+    return datetime.fromtimestamp(timestamp_ms / 1000, APP_TZ).replace(tzinfo=None)
+
+
+def from_unix_seconds(timestamp):
+    return datetime.fromtimestamp(timestamp, APP_TZ).replace(tzinfo=None)
 
 
 class Database:
@@ -100,16 +114,16 @@ class Database:
                 cur.execute(
                     """UPDATE coins SET symbol=%s, name=%s, current_price=%s,
                        market_cap=0, price_change_percentage_24h=%s,
-                       last_updated=NOW()
+                       last_updated=%s
                        WHERE coin_id=%s""",
-                    (symbol, name, price, change_pct, coin_id)
+                    (symbol, name, price, change_pct, app_now(), coin_id)
                 )
             else:
                 cur.execute(
                     """INSERT INTO coins (coin_id, symbol, name, current_price,
                        market_cap, price_change_percentage_24h, last_updated)
-                       VALUES (%s, %s, %s, %s, 0, %s, NOW())""",
-                    (coin_id, symbol, name, price, change_pct)
+                       VALUES (%s, %s, %s, %s, 0, %s, %s)""",
+                    (coin_id, symbol, name, price, change_pct, app_now())
                 )
         self.conn.commit()
 
@@ -134,11 +148,11 @@ class Database:
                 )
         self.conn.commit()
 
-    def delete_old_price_points(self, coin_id, days):
-        since = datetime.now() - timedelta(days=days)
+    def delete_price_points_window(self, coin_id, days):
+        since = app_now() - timedelta(days=days)
         with self.conn.cursor() as cur:
             cur.execute(
-                "DELETE FROM price_points WHERE coin_id=%s AND timestamp < %s",
+                "DELETE FROM price_points WHERE coin_id=%s AND timestamp >= %s",
                 (coin_id, since)
             )
         self.conn.commit()
@@ -147,11 +161,11 @@ class Database:
         with self.conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO fear_greed (id, value, classification, unix_timestamp, updated_at)
-                   VALUES (1, %s, %s, %s, NOW())
+                   VALUES (1, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE
                    value=VALUES(value), classification=VALUES(classification),
-                   unix_timestamp=VALUES(unix_timestamp), updated_at=NOW()""",
-                (value, classification, unix_ts)
+                   unix_timestamp=VALUES(unix_timestamp), updated_at=VALUES(updated_at)""",
+                (value, classification, unix_ts, app_now())
             )
         self.conn.commit()
 
@@ -220,7 +234,7 @@ def fetch_coingecko_history(coin_id, cg_id, days):
             return []
         result = []
         for entry in prices:
-            ts = datetime.fromtimestamp(entry[0] / 1000)
+            ts = from_unix_ms(entry[0])
             result.append((ts, float(entry[1])))
         return result
     except Exception as e:
@@ -240,7 +254,7 @@ def parse_gateio_candle(entry):
         return None
 
     try:
-        ts = datetime.fromtimestamp(int(float(timestamp)))
+        ts = from_unix_seconds(int(float(timestamp)))
         price = float(close_price)
         return ts, price
     except (TypeError, ValueError):
@@ -333,7 +347,7 @@ def collect_tickers(db, record_history=False):
 
         db.upsert_coin(coin_id, symbol, name, price, change)
         if record_history and price > 0:
-            snapshot_ts = datetime.now().replace(second=0, microsecond=0)
+            snapshot_ts = app_now().replace(second=0, microsecond=0)
             db.upsert_price_point(coin_id, snapshot_ts, price)
         count += 1
 
@@ -364,7 +378,7 @@ def collect_history(db, coin_ids):
             if points is None or not points:
                 time.sleep(config.HISTORY_REQUEST_DELAY)
                 continue
-            db.delete_old_price_points(coin_id, days)
+            db.delete_price_points_window(coin_id, days)
             db.batch_replace_price_points(coin_id, points)
             log.info("Stored %d history points for %s", len(points), coin_id)
             time.sleep(config.HISTORY_REQUEST_DELAY)

@@ -27,6 +27,29 @@ class Settings(BaseSettings):
     ai_reasoning_effort: str | None = Field(default=None, alias="AI_REASONING_EFFORT")
     spring_api_base_url: str = Field(default="http://localhost:8080/api", alias="SPRING_API_BASE_URL")
     spring_api_timeout_seconds: float = Field(default=10.0, alias="SPRING_API_TIMEOUT_SECONDS")
+    rag_enabled: bool = Field(default=True, alias="RAG_ENABLED")
+    rag_root_path: str | None = Field(default=None, alias="RAG_ROOT_PATH")
+    rag_include_paths: str = Field(
+        default=(
+            "README.md,fastapi-ai,src/main/java,src/main/resources,"
+            "frontend/coin-market-web/src,scripts"
+        ),
+        alias="RAG_INCLUDE_PATHS",
+    )
+    rag_exclude_dirs: str = Field(
+        default=".git,.idea,.vscode,.mvn,.venv,venv,target,node_modules,dist,__pycache__",
+        alias="RAG_EXCLUDE_DIRS",
+    )
+    rag_max_files: int = Field(default=120, alias="RAG_MAX_FILES")
+    rag_max_file_bytes: int = Field(default=200_000, alias="RAG_MAX_FILE_BYTES")
+    rag_chunk_chars: int = Field(default=1400, alias="RAG_CHUNK_CHARS")
+    rag_snippet_chars: int = Field(default=1200, alias="RAG_SNIPPET_CHARS")
+    rag_max_sources: int = Field(default=5, alias="RAG_MAX_SOURCES")
+    rag_min_score: float = Field(default=1.2, alias="RAG_MIN_SCORE")
+    market_tools_enabled: bool = Field(default=True, alias="MARKET_TOOLS_ENABLED")
+    market_tool_default_history_days: int = Field(default=7, alias="MARKET_TOOL_DEFAULT_HISTORY_DAYS")
+    market_tool_max_history_days: int = Field(default=30, alias="MARKET_TOOL_MAX_HISTORY_DAYS")
+    market_tool_max_context_chars: int = Field(default=8000, alias="MARKET_TOOL_MAX_CONTEXT_CHARS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
