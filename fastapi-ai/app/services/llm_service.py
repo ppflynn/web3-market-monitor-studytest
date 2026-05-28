@@ -2,6 +2,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -26,7 +27,7 @@ class LLMService:
         self.settings = settings
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
-        rag_result = RagService(self.settings).build_context(request.message)
+        rag_result = await run_in_threadpool(RagService(self.settings).build_context, request.message)
         tool_result = await MarketToolService(self.settings).execute_for_question(request.message)
 
         if not self.settings.api_key:

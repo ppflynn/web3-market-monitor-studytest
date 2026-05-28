@@ -1,26 +1,19 @@
 <template>
   <div class="ai-page">
-    <section class="ai-header">
+    <section class="ai-title">
       <div>
-        <h1>AI 智能助手</h1>
-        <p>连接 FastAPI AI 服务，先读取项目行情数据，再调用大模型生成回答。</p>
+        <h1>AI 助手</h1>
+        <p>调用当前项目的 FastAPI AI 服务，结合行情接口、市场工具和项目 RAG 上下文回答问题。</p>
       </div>
-      <el-button :icon="Refresh" :loading="healthLoading" @click="fetchHealth">刷新状态</el-button>
+      <button type="button" class="refresh-button" :disabled="healthLoading" @click="fetchHealth">
+        {{ healthLoading ? '检查中' : '刷新状态' }}
+      </button>
     </section>
 
     <section class="status-grid">
-      <div class="status-tile">
-        <span class="tile-label">AI 服务</span>
-        <strong :class="healthOk ? 'ok' : 'warn'">{{ healthOk ? '运行中' : '未连接' }}</strong>
-      </div>
-      <div class="status-tile">
-        <span class="tile-label">模型配置</span>
-        <strong :class="llmConfigured ? 'ok' : 'warn'">{{ llmConfigured ? '已配置' : '待配置' }}</strong>
-      </div>
-      <div class="status-tile">
-        <span class="tile-label">当前环境</span>
-        <strong>{{ health?.environment || '--' }}</strong>
-      </div>
+      <div><span>AI 服务</span><strong :class="healthOk ? 'ok' : 'warn'">{{ healthOk ? '运行中' : '未连接' }}</strong></div>
+      <div><span>模型配置</span><strong :class="llmConfigured ? 'ok' : 'warn'">{{ llmConfigured ? '已配置' : '待配置' }}</strong></div>
+      <div><span>当前环境</span><strong>{{ health?.environment || '--' }}</strong></div>
     </section>
 
     <el-alert
@@ -34,21 +27,25 @@
     />
 
     <section class="chat-layout">
-      <div class="chat-panel">
+      <main class="chat-card">
+        <div class="chat-head">
+          <div>
+            <h2>Market Chat</h2>
+            <p>使用 `/api/ai/chat`，保留最近 8 条上下文</p>
+          </div>
+          <span>{{ chatLoading ? 'Thinking' : 'Ready' }}</span>
+        </div>
+
         <div class="messages" ref="messagesRef">
           <div v-for="message in messages" :key="message.id" class="message" :class="message.role">
             <span class="message-role">{{ message.role === 'user' ? '你' : 'AI' }}</span>
             <p>{{ message.content }}</p>
-            <ul v-if="message.sources?.length" class="message-sources">
-              <li v-for="source in message.sources" :key="`${source.path}-${source.score}`">
-                <code>{{ source.path }}</code>
-              </li>
-            </ul>
-            <ul v-if="message.tools?.length" class="message-tools">
-              <li v-for="tool in message.tools" :key="`${tool.name}-${JSON.stringify(tool.arguments)}`">
-                <code>{{ tool.name }}</code>
-              </li>
-            </ul>
+            <div v-if="message.sources?.length" class="message-meta">
+              <code v-for="source in message.sources" :key="`${source.path}-${source.score}`">{{ source.path }}</code>
+            </div>
+            <div v-if="message.tools?.length" class="message-meta">
+              <code v-for="tool in message.tools" :key="`${tool.name}-${JSON.stringify(tool.arguments)}`">{{ tool.name }}</code>
+            </div>
           </div>
         </div>
 
@@ -64,25 +61,39 @@
             @keydown.ctrl.enter.prevent="submit"
           />
           <div class="composer-actions">
-            <el-button @click="fillExample('请介绍这个项目的 AI 服务')">项目介绍</el-button>
-            <el-button @click="fillExample('BTC 最近 7 天走势怎么看？请基于项目数据库数据回答。')">行情提问</el-button>
-            <el-button type="primary" :loading="chatLoading" :disabled="!canSubmit" @click="submit">
-              发送
-            </el-button>
+            <button type="button" @click="fillExample('请介绍这个项目的 AI 服务，以及它能读取哪些行情数据。')">项目介绍</button>
+            <button type="button" @click="fillExample('BTC 最近 7 天走势怎么看？请基于项目数据库数据回答，并只做信息分析。')">行情提问</button>
+            <button type="button" class="primary" :disabled="!canSubmit" @click="submit">{{ chatLoading ? '发送中' : '发送' }}</button>
           </div>
         </div>
-      </div>
+      </main>
 
-      <aside class="side-panel">
-        <h2>已接入能力</h2>
-        <ul>
-          <li>FastAPI 独立 AI 服务</li>
-          <li>Spring Boot / MySQL 行情数据读取</li>
-          <li>DeepSeek / OpenAI 兼容接口</li>
-          <li>API Key 后端隐藏</li>
-          <li>中文接口文档与健康检查</li>
-        </ul>
-        <a href="/api/ai/health" target="_blank" rel="noreferrer">查看健康检查</a>
+      <aside class="side-stack">
+        <section class="side-card">
+          <h3>已接入能力</h3>
+          <ul>
+            <li>FastAPI 独立 AI 服务</li>
+            <li>Spring Boot / MySQL 行情读取</li>
+            <li>OpenAI 兼容模型接口</li>
+            <li>项目 RAG 文档检索</li>
+            <li>市场工具自动调用</li>
+          </ul>
+          <a href="/api/ai/health" target="_blank" rel="noreferrer">查看健康检查</a>
+        </section>
+
+        <section class="side-card" v-if="latestSources.length">
+          <h3>Latest Sources</h3>
+          <div class="source-list">
+            <code v-for="source in latestSources" :key="`${source.path}-${source.score}`">{{ source.path }}</code>
+          </div>
+        </section>
+
+        <section class="side-card" v-if="latestTools.length">
+          <h3>Latest Tools</h3>
+          <div class="source-list">
+            <code v-for="tool in latestTools" :key="`${tool.name}-${JSON.stringify(tool.arguments)}`">{{ tool.name }}</code>
+          </div>
+        </section>
       </aside>
     </section>
   </div>
@@ -91,7 +102,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Refresh } from '@element-plus/icons-vue'
 import { getAiHealth, sendAiChat } from '../api/ai.js'
 
 const route = useRoute()
@@ -112,6 +122,9 @@ const messages = ref([
 const healthOk = computed(() => health.value?.status === 'ok')
 const llmConfigured = computed(() => Boolean(health.value?.llm_configured))
 const canSubmit = computed(() => input.value.trim().length > 0 && !chatLoading.value)
+const latestAssistantMessage = computed(() => [...messages.value].reverse().find(message => message.role === 'assistant'))
+const latestSources = computed(() => latestAssistantMessage.value?.sources ?? [])
+const latestTools = computed(() => latestAssistantMessage.value?.tools ?? [])
 
 async function fetchHealth() {
   try {
@@ -126,34 +139,21 @@ async function fetchHealth() {
     healthLoading.value = false
   }
 }
-
-function fillExample(text) {
-  input.value = text
-}
-
+function fillExample(text) { input.value = text }
 async function submit() {
   const content = input.value.trim()
   if (!content || chatLoading.value) return
-
   const history = messages.value
     .filter(message => message.role === 'user' || message.role === 'assistant')
     .slice(-8)
     .map(message => ({ role: message.role, content: message.content }))
-
   messages.value.push({ id: Date.now(), role: 'user', content })
   input.value = ''
   await scrollToBottom()
-
   try {
     chatLoading.value = true
     errorMsg.value = ''
-    const res = await sendAiChat({
-      message: content,
-      history,
-      temperature: 0.3,
-      max_tokens: 800
-    })
-
+    const res = await sendAiChat({ message: content, history, temperature: 0.3, max_tokens: 800 })
     messages.value.push({
       id: Date.now() + 1,
       role: 'assistant',
@@ -164,135 +164,166 @@ async function submit() {
   } catch (err) {
     const detail = err.response?.data?.detail
     errorMsg.value = detail || 'AI 调用失败，请检查模型配置或稍后重试。'
-    messages.value.push({
-      id: Date.now() + 2,
-      role: 'assistant',
-      content: errorMsg.value
-    })
+    messages.value.push({ id: Date.now() + 2, role: 'assistant', content: errorMsg.value })
   } finally {
     chatLoading.value = false
     await scrollToBottom()
   }
 }
-
 async function scrollToBottom() {
   await nextTick()
   const el = messagesRef.value
   if (el) el.scrollTop = el.scrollHeight
 }
-
 onMounted(() => {
   fetchHealth()
-  if (typeof route.query.q === 'string') {
-    input.value = route.query.q
-  }
+  if (typeof route.query.q === 'string') input.value = route.query.q
 })
 </script>
 
 <style scoped>
 .ai-page {
-  min-height: calc(100vh - 60px);
-  max-width: 1180px;
+  width: min(1280px, 100%);
+  min-height: calc(100vh - 64px);
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 28px 24px 56px;
 }
 
-.ai-header {
+.ai-title {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
-.ai-header h1 {
-  margin: 0 0 6px;
-  color: #f1f5f9;
-  font-size: 24px;
-  line-height: 1.3;
-}
-
-.ai-header p {
+.ai-title h1 {
   margin: 0;
-  color: #94a3b8;
+  color: #111;
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.ai-title p {
+  margin: 8px 0 0;
+  color: #707a8a;
   font-size: 14px;
+}
+
+button {
+  font-family: inherit;
+}
+
+.refresh-button,
+.composer-actions button {
+  height: 34px;
+  border: 1px solid #ebedf0;
+  border-radius: 17px;
+  padding: 0 14px;
+  color: #111;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.refresh-button {
+  color: #fff;
+  border-color: #111;
+  background: #111;
 }
 
 .status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
-.status-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 14px 16px;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+.status-grid div,
+.chat-card,
+.side-card {
+  border: 1px solid #ebedf0;
+  border-radius: 16px;
+  background: #fff;
 }
 
-.tile-label {
-  color: #64748b;
-  font-size: 11px;
+.status-grid div {
+  padding: 16px;
+}
+
+.status-grid span {
+  display: block;
+  color: #707a8a;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.status-tile strong {
-  overflow: hidden;
-  color: #e2e8f0;
-  font-size: 17px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.status-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #111;
+  font-size: 18px;
+  font-weight: 800;
 }
 
-.status-tile strong.ok {
-  color: #34d399;
+.status-grid .ok {
+  color: #16a34a;
 }
 
-.status-tile strong.warn {
-  color: #fbbf24;
-}
-
-.error-alert {
-  margin-bottom: 16px;
+.status-grid .warn {
+  color: #f59e0b;
 }
 
 .chat-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
   align-items: start;
 }
 
-.chat-panel,
-.side-panel {
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+.chat-card {
+  overflow: hidden;
 }
 
-.chat-panel {
+.chat-head {
   display: flex;
-  flex-direction: column;
-  min-height: 620px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.chat-head h2,
+.side-card h3 {
+  margin: 0;
+  color: #111;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.chat-head p {
+  margin: 4px 0 0;
+  color: #707a8a;
+  font-size: 13px;
+}
+
+.chat-head > span {
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .messages {
-  flex: 1;
-  min-height: 360px;
+  min-height: 400px;
   max-height: 520px;
   overflow-y: auto;
-  padding: 18px;
+  padding: 20px;
+  background: #fafafa;
 }
 
 .message {
   max-width: 78%;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .message.user {
@@ -301,9 +332,9 @@ onMounted(() => {
 
 .message-role {
   display: block;
-  margin-bottom: 4px;
-  color: #64748b;
-  font-size: 11px;
+  margin-bottom: 5px;
+  color: #707a8a;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -314,74 +345,48 @@ onMounted(() => {
 .message p {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  color: #e2e8f0;
-  background: rgba(15,23,42,0.8);
+  border: 1px solid #ebedf0;
+  border-radius: 14px;
+  color: #111;
+  background: #fff;
+  font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
 }
 
 .message.user p {
-  color: #eef6ff;
-  background: rgba(37,99,235,0.28);
+  color: #fff;
+  border-color: #111;
+  background: #111;
 }
 
-.message-sources {
+.message-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
+  margin-top: 8px;
 }
 
-.message-sources code {
-  display: inline-flex;
-  max-width: 100%;
-  padding: 4px 7px;
-  border: 1px solid rgba(96,165,250,0.26);
-  border-radius: 6px;
-  color: #93c5fd;
-  background: rgba(15,23,42,0.65);
+.message-meta code,
+.source-list code {
+  padding: 5px 8px;
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+  color: #3f4656;
+  background: #fff;
   font-size: 11px;
-  line-height: 1.4;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.message-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.message-tools code {
-  display: inline-flex;
-  max-width: 100%;
-  padding: 4px 7px;
-  border: 1px solid rgba(52,211,153,0.26);
-  border-radius: 6px;
-  color: #86efac;
-  background: rgba(6,78,59,0.22);
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: normal;
-  word-break: break-word;
 }
 
 .composer {
-  padding: 14px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 16px 20px;
+  border-top: 1px solid #ebedf0;
 }
 
 .composer :deep(.el-textarea__inner) {
-  color: #e2e8f0;
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.08);
+  border-color: #ebedf0;
+  border-radius: 12px;
+  color: #111;
+  background: #fff;
   box-shadow: none;
 }
 
@@ -393,63 +398,73 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.side-panel {
-  padding: 16px;
+.composer-actions .primary {
+  color: #fff;
+  border-color: #111;
+  background: #111;
 }
 
-.side-panel h2 {
-  margin: 0 0 12px;
-  color: #f1f5f9;
-  font-size: 16px;
+.composer-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.side-panel ul {
-  margin: 0 0 16px;
-  padding-left: 18px;
-  color: #cbd5e1;
-  line-height: 1.9;
-  font-size: 13px;
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.side-panel a {
-  color: #60a5fa;
+.side-card {
+  padding: 18px;
+}
+
+.side-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.side-card li {
+  color: #3f4656;
   font-size: 13px;
   font-weight: 700;
+}
+
+.side-card a {
+  color: #111;
+  font-size: 13px;
+  font-weight: 800;
   text-decoration: none;
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 @media (max-width: 900px) {
   .chat-layout {
     grid-template-columns: 1fr;
   }
-
-  .side-panel {
-    order: -1;
-  }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .ai-page {
-    padding: 16px 12px 36px;
+    padding: 20px 12px 40px;
   }
-
-  .ai-header {
+  .ai-title,
+  .chat-head {
+    align-items: stretch;
     flex-direction: column;
   }
-
   .status-grid {
     grid-template-columns: 1fr;
   }
-
-  .chat-panel {
-    min-height: 560px;
-  }
-
-  .messages {
-    max-height: 430px;
-    padding: 14px;
-  }
-
   .message {
     max-width: 92%;
   }

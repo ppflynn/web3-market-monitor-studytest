@@ -1,79 +1,79 @@
 <template>
-  <div class="coin-detail-page">
-    <div class="detail-header">
-      <el-button class="back-btn" @click="goBack" :icon="ArrowLeft" text>返回</el-button>
-      <div class="coin-info" v-if="coin">
-        <div class="coin-icon-fallback" :style="{ background: coinColor(coin) }">
-          {{ coinInitial(coin) }}
-        </div>
-        <div class="coin-title">
-          <h1 class="coin-name">{{ coin.name }}</h1>
-          <span class="coin-symbol">{{ coin.symbol }}</span>
+  <div class="detail-page">
+    <section class="detail-title">
+      <div>
+        <el-button class="back-btn" @click="goBack" :icon="ArrowLeft" text>返回行情</el-button>
+        <div class="coin-heading" v-if="coin">
+          <span class="coin-icon" :style="{ background: coinColor(coin) }">{{ coinInitial(coin) }}</span>
+          <div>
+            <h1>{{ nameOf(coin) }}</h1>
+            <p>{{ symbolOf(coin) }} / USD</p>
+          </div>
         </div>
       </div>
-    </div>
+      <div class="price-summary" v-if="coin">
+        <span>当前价格</span>
+        <strong>{{ formatPrice(priceOf(coin)) }}</strong>
+        <em :class="changeClass(changeOf(coin))">{{ formatSignedChange(changeOf(coin)) }}</em>
+      </div>
+    </section>
 
     <el-alert
-      v-if="errorMsg" :title="errorMsg" type="error" show-icon closable
-      @close="errorMsg = ''" class="error-alert"
+      v-if="errorMsg"
+      :title="errorMsg"
+      type="error"
+      show-icon
+      closable
+      class="error-alert"
+      @close="errorMsg = ''"
     />
 
-    <div v-loading="detailLoading" class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">当前价格</span>
-        <span class="stat-value price-value">{{ formatPrice(coin?.current_price) }}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">24小时涨跌</span>
-        <span class="stat-value" :class="changeClass(coin?.price_change_percentage_24h)">
-          <el-icon v-if="coin?.price_change_percentage_24h > 0"><CaretTop /></el-icon>
-          <el-icon v-else-if="coin?.price_change_percentage_24h < 0"><CaretBottom /></el-icon>
-          {{ formatChange(coin?.price_change_percentage_24h) }}
-        </span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">市值</span>
-        <span class="stat-value">{{ formatMarketCap(coin?.market_cap) }}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">最后更新</span>
-        <span class="stat-value stat-time">{{ formatTime(coin?.last_updated) }}</span>
-      </div>
-    </div>
-
-    <div class="chart-section">
-      <div class="chart-header">
-        <h2 class="chart-title">价格走势</h2>
-        <el-button type="primary" size="small" @click="openAiAssistant">AI 助手</el-button>
-        <el-button-group class="time-toggle">
-          <el-button
-            :type="selectedDays === 7 ? 'primary' : 'default'"
-            size="small" @click="selectDays(7)">7d</el-button>
-          <el-button
-            :type="selectedDays === 30 ? 'primary' : 'default'"
-            size="small" @click="selectDays(30)">30d</el-button>
-        </el-button-group>
-      </div>
-
-      <div v-loading="chartLoading" class="chart-wrapper">
-        <v-chart
-          v-if="chartOption"
-          :option="chartOption"
-          :autoresize="true"
-          class="chart"
-        />
-        <div v-else-if="!chartLoading" class="chart-empty">
-          <el-empty description="暂无历史数据" />
+    <section class="detail-layout">
+      <main class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>价格走势</h2>
+            <p>{{ selectedDays }} 天历史价格序列</p>
+          </div>
+          <div class="chart-actions">
+            <button type="button" @click="openAiAssistant">AI 分析</button>
+            <button type="button" :class="{ active: selectedDays === 7 }" @click="selectDays(7)">7D</button>
+            <button type="button" :class="{ active: selectedDays === 30 }" @click="selectDays(30)">30D</button>
+          </div>
         </div>
-      </div>
-    </div>
+        <div v-loading="chartLoading" class="chart-wrapper">
+          <v-chart v-if="chartOption" :option="chartOption" :autoresize="true" class="chart" />
+          <div v-else-if="!chartLoading" class="chart-empty">
+            <el-empty description="暂无历史数据" />
+          </div>
+        </div>
+      </main>
+
+      <aside class="side-stack">
+        <section v-loading="detailLoading" class="panel side-panel">
+          <h3>币种数据</h3>
+          <div class="metric-list">
+            <div><span>当前价格</span><strong>{{ formatPrice(priceOf(coin)) }}</strong></div>
+            <div><span>24h 涨跌</span><strong :class="changeClass(changeOf(coin))">{{ formatSignedChange(changeOf(coin)) }}</strong></div>
+            <div><span>市值</span><strong>{{ formatMarketCap(marketCapOf(coin)) }}</strong></div>
+            <div><span>最后更新</span><strong>{{ formatTime(lastUpdatedOf(coin)) }}</strong></div>
+          </div>
+        </section>
+
+        <section class="panel ai-panel">
+          <h3>AI 信息分析</h3>
+          <p>基于当前币种、历史价格和项目数据库上下文进入 AI 助手，不提供投资建议。</p>
+          <button type="button" @click="openAiAssistant">打开 AI 助手</button>
+        </section>
+      </aside>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, CaretTop, CaretBottom } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
 import { getCoinDetail, getCoinHistory } from '../api/coin.js'
@@ -81,7 +81,6 @@ import { formatAppDateTime, formatAppShortDate } from '../utils/time.js'
 
 const route = useRoute()
 const router = useRouter()
-
 const coin = ref(null)
 const historyData = ref([])
 const detailLoading = ref(false)
@@ -89,45 +88,43 @@ const chartLoading = ref(false)
 const errorMsg = ref('')
 const selectedDays = ref(7)
 
-function coinInitial(c) {
-  const name = c?.name
-  if (name) return name.charAt(0).toUpperCase()
-  const sym = c?.symbol
-  return sym ? sym.charAt(0) : '?'
+function valueOf(row, snakeKey, camelKey) { return row ? (row[snakeKey] ?? row[camelKey] ?? null) : null }
+function nameOf(row) { return row?.name ?? '' }
+function symbolOf(row) { return row?.symbol ? String(row.symbol).toUpperCase() : '' }
+function priceOf(row) { const v = valueOf(row, 'current_price', 'currentPrice'); return v != null ? Number(v) : null }
+function changeOf(row) {
+  const v = row?.price_change_percentage_24h ?? row?.price_change_percentage24h ?? row?.priceChangePercentage24h
+  return v != null ? Number(v) : null
 }
-
+function marketCapOf(row) { const v = valueOf(row, 'market_cap', 'marketCap'); return v != null ? Number(v) : null }
+function lastUpdatedOf(row) { return valueOf(row, 'last_updated', 'lastUpdated') }
+function coinInitial(c) { const sym = symbolOf(c); return sym ? sym.slice(0, 2) : (nameOf(c).charAt(0).toUpperCase() || '?') }
 function coinColor(c) {
-  const str = c?.name || c?.symbol || '?'
+  const str = nameOf(c) || symbolOf(c) || '?'
   let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return `hsl(${Math.abs(hash) % 360}, 55%, 45%)`
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  return `hsl(${Math.abs(hash) % 360}, 72%, 45%)`
 }
-
 function formatPrice(price) {
-  if (price == null) return '$0.00'
+  if (price == null) return '$ --'
   const num = Number(price)
+  if (num === 0) return '$0.00'
   if (num >= 1) return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   if (num >= 0.01) return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 })
 }
-
-function formatChange(change) {
-  if (change == null) return '0.00%'
-  return Math.abs(Number(change)).toFixed(2) + '%'
-}
-
-function changeClass(change) {
-  if (change == null) return 'neutral'
+function formatSignedChange(change) {
+  if (change == null) return '--'
   const num = Number(change)
-  if (num > 0) return 'positive'
-  if (num < 0) return 'negative'
-  return 'neutral'
+  const sign = num > 0 ? '+' : num < 0 ? '-' : ''
+  return sign + Math.abs(num).toFixed(2) + '%'
 }
-
+function changeClass(change) {
+  if (change == null || Number(change) === 0) return 'neutral'
+  return Number(change) > 0 ? 'positive' : 'negative'
+}
 function formatMarketCap(cap) {
-  if (cap == null) return '$0'
+  if (cap == null) return '--'
   const num = Number(cap)
   if (num >= 1e12) return '$' + (num / 1e12).toFixed(2) + 'T'
   if (num >= 1e9) return '$' + (num / 1e9).toFixed(2) + 'B'
@@ -135,99 +132,54 @@ function formatMarketCap(cap) {
   if (num >= 1e3) return '$' + (num / 1e3).toFixed(2) + 'K'
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
-
-function formatTime(time) {
-  return formatAppDateTime(time, '暂无')
-}
-
+function formatTime(time) { return formatAppDateTime(time, '暂无') }
 function goBack() { router.push({ name: 'CoinList' }) }
-
 function openAiAssistant() {
   router.push({
     name: 'AiAssistant',
-    query: {
-      q: `${coin.value?.symbol || route.params.coinId} 最近走势怎么看？请只做信息分析，不要给投资建议。`
-    }
+    query: { q: `${symbolOf(coin.value) || route.params.coinId} 最近走势怎么看？请基于项目数据库和历史价格做信息分析，不要给投资建议。` }
   })
 }
-
-function selectDays(days) { selectedDays.value = days; fetchHistory() }
+function selectDays(days) { if (selectedDays.value !== days) { selectedDays.value = days; fetchHistory() } }
 
 const chartOption = computed(() => {
   if (!historyData.value.length) return null
-  const dates = historyData.value.map(d => {
-    return formatAppShortDate(d.timestamp || d.date || d.time)
-  })
-  const prices = historyData.value.map(d => d.price ?? d.close ?? d.value)
-  const lineColor = prices.length > 1 && prices[prices.length - 1] >= prices[0] ? '#34d399' : '#f87171'
-
+  const dates = historyData.value.map(d => formatAppShortDate(d.timestamp || d.date || d.time))
+  const prices = historyData.value.map(d => Number(d.price ?? d.close ?? d.value)).filter(v => !Number.isNaN(v))
+  if (!prices.length) return null
+  const lineColor = prices.length > 1 && prices[prices.length - 1] >= prices[0] ? '#16a34a' : '#ef4444'
   return {
     backgroundColor: 'transparent',
-    grid: { top: 20, right: 20, bottom: 50, left: 60 },
+    grid: { top: 24, right: 24, bottom: 42, left: 68 },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(20,24,35,0.95)',
-      borderColor: 'rgba(255,255,255,0.08)',
-      textStyle: { color: '#e2e8f0', fontSize: 13 },
-      formatter: (params) => {
-        const p = params[0]
-        const val = Number(p.value)
-        const formatted = val >= 1
-          ? '$' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : '$' + val.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 })
-        return `<span style="color:#94a3b8">${p.axisValue}</span><br/><span style="font-weight:700;color:#e2e8f0">${formatted}</span>`
-      }
+      backgroundColor: '#fff',
+      borderColor: '#ebedf0',
+      textStyle: { color: '#111', fontSize: 12 },
+      formatter: (params) => `${params[0].axisValue}<br/><b>${formatPrice(Number(params[0].value))}</b>`
     },
     xAxis: {
-      type: 'category', data: dates,
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      type: 'category',
+      data: dates,
+      axisLine: { lineStyle: { color: '#ebedf0' } },
       axisTick: { show: false },
-      axisLabel: { color: '#64748b', fontSize: 11, interval: Math.max(Math.floor(dates.length / 8), 0) },
-      splitLine: { show: false }
+      axisLabel: { color: '#707a8a', fontSize: 11, interval: Math.max(Math.floor(dates.length / 7), 0) }
     },
     yAxis: {
       type: 'value',
-      axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: {
-        color: '#64748b', fontSize: 11,
-        formatter: (val) => {
-          if (val >= 1e6) return '$' + (val / 1e6).toFixed(2) + 'M'
-          if (val >= 1e3) return '$' + (val / 1e3).toFixed(2) + 'K'
-          if (val >= 1) return '$' + val.toFixed(2)
-          return '$' + val.toFixed(6)
-        }
-      },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+      scale: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#707a8a', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#ebedf0' } }
     },
-    dataZoom: [
-      {
-        type: 'slider', start: 0, end: 100, height: 20, bottom: 6,
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        dataBackground: {
-          lineStyle: { color: 'rgba(255,255,255,0.06)' },
-          areaStyle: { color: 'rgba(255,255,255,0.04)' }
-        },
-        selectedDataBackground: {
-          lineStyle: { color: lineColor },
-          areaStyle: { color: lineColor + '30' }
-        },
-        handleStyle: { color: lineColor },
-        textStyle: { color: '#64748b', fontSize: 10 },
-        fillerColor: lineColor + '20'
-      }
-    ],
     series: [{
-      type: 'line', data: prices, smooth: true, showSymbol: false,
+      type: 'line',
+      data: prices,
+      smooth: true,
+      showSymbol: false,
       lineStyle: { color: lineColor, width: 2 },
-      areaStyle: {
-        color: {
-          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: lineColor + '30' },
-            { offset: 1, color: lineColor + '02' }
-          ]
-        }
-      }
+      areaStyle: { color: lineColor + '18' }
     }]
   }
 })
@@ -242,12 +194,11 @@ async function fetchDetail() {
     coin.value = res.data?.data ?? res.data ?? null
   } catch (err) {
     console.error('Failed to fetch coin detail:', err)
-    errorMsg.value = err.response?.data?.message || 'Failed to load coin details.'
+    errorMsg.value = err.response?.data?.message || '币种详情加载失败，请稍后重试。'
   } finally {
     detailLoading.value = false
   }
 }
-
 async function fetchHistory() {
   const coinId = route.params.coinId
   if (!coinId) return
@@ -262,124 +213,220 @@ async function fetchHistory() {
     chartLoading.value = false
   }
 }
-
 watch(() => route.params.coinId, () => { fetchDetail(); fetchHistory() })
 onMounted(() => { fetchDetail(); fetchHistory() })
 </script>
 
 <style scoped>
-.coin-detail-page {
-  min-height: 100vh;
-  padding: 24px 16px 60px;
-  max-width: 1200px;
+.detail-page {
+  width: min(1280px, 100%);
+  min-height: calc(100vh - 64px);
   margin: 0 auto;
+  padding: 28px 24px 56px;
 }
 
-.detail-header {
+.detail-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.back-btn {
+  margin-bottom: 12px;
+  color: #707a8a;
+  font-weight: 700;
+}
+
+.coin-heading {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
 }
 
-.back-btn { color: #94a3b8; font-size: 14px; }
-.back-btn:hover { color: #e2e8f0; }
-
-.coin-info { display: flex; align-items: center; gap: 12px; }
-
-.coin-icon-fallback {
-  width: 42px; height: 42px;
+.coin-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-weight: 700; font-size: 18px; flex-shrink: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.coin-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.coin-name { font-size: 24px; font-weight: 700; color: #f1f5f9; margin: 0; }
-.coin-symbol { font-size: 15px; font-weight: 600; color: #64748b; text-transform: uppercase; }
-
-.error-alert {
-  margin-bottom: 20px;
-  background: rgba(248,113,113,0.1);
-  border: 1px solid rgba(248,113,113,0.2);
-  border-radius: 12px;
+.coin-heading h1 {
+  margin: 0;
+  color: #111;
+  font-size: 30px;
+  font-weight: 800;
 }
-.error-alert :deep(.el-alert__title) { color: #fca5a5; }
 
-.stats-grid {
+.coin-heading p,
+.price-summary span,
+.panel-head p,
+.ai-panel p {
+  margin: 4px 0 0;
+  color: #707a8a;
+  font-size: 13px;
+}
+
+.price-summary {
+  text-align: right;
+}
+
+.price-summary strong {
+  display: block;
+  margin: 6px 0 3px;
+  color: #111;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.price-summary em {
+  font-style: normal;
+  font-weight: 800;
+}
+
+.detail-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 32px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
 }
 
-.stat-card {
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px;
-  padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-
-.stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }
-.stat-value { font-size: 18px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
-.stat-value.positive { color: #34d399; }
-.stat-value.negative { color: #f87171; }
-.stat-value.neutral { color: #e2e8f0; }
-.stat-time { font-size: 14px; font-weight: 500; }
-
-.price-value { font-size: 20px; }
-
-.chart-section {
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.06);
+.panel {
+  border: 1px solid #ebedf0;
   border-radius: 16px;
-  padding: 20px;
+  background: #fff;
 }
 
-.chart-header {
+.panel-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #ebedf0;
 }
 
-.chart-title { font-size: 16px; font-weight: 600; color: #e2e8f0; margin: 0; }
-
-.time-toggle :deep(.el-button) {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #94a3b8;
-}
-.time-toggle :deep(.el-button--primary) {
-  background: rgba(59,130,246,0.2);
-  border-color: rgba(59,130,246,0.4);
-  color: #60a5fa;
+.panel-head h2,
+.side-panel h3,
+.ai-panel h3 {
+  margin: 0;
+  color: #111;
+  font-size: 18px;
+  font-weight: 800;
 }
 
-.chart-wrapper { position: relative; min-height: 300px; }
-.chart { width: 100%; height: 380px; }
-.chart-empty { padding: 40px 0; }
-.chart-empty :deep(.el-empty__description) { color: #64748b; }
+.chart-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-@media (max-width: 768px) {
-  .coin-detail-page { padding: 16px 12px 40px; }
-  .coin-name { font-size: 20px; }
-  .coin-icon-fallback { width: 36px; height: 36px; font-size: 16px; }
+.chart-actions button,
+.ai-panel button {
+  height: 32px;
+  border: 1px solid #ebedf0;
+  border-radius: 16px;
+  padding: 0 12px;
+  color: #111;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
 
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .stat-card { padding: 12px 14px; }
-  .stat-value { font-size: 16px; }
-  .price-value { font-size: 18px; }
-  .stat-time { font-size: 12px; }
+.chart-actions button.active,
+.chart-actions button:hover,
+.ai-panel button:hover {
+  border-color: #111;
+}
 
-  .chart-section { padding: 14px; }
-  .chart { height: 280px; }
-  .chart-wrapper { min-height: 240px; }
+.chart-wrapper {
+  min-height: 410px;
+  padding: 8px;
+}
+
+.chart {
+  width: 100%;
+  height: 400px;
+}
+
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.side-panel,
+.ai-panel {
+  padding: 18px;
+}
+
+.metric-list {
+  display: grid;
+  margin-top: 14px;
+  border-top: 1px solid #ebedf0;
+}
+
+.metric-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.metric-list span {
+  color: #707a8a;
+  font-size: 13px;
+}
+
+.metric-list strong {
+  color: #111;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.positive {
+  color: #16a34a !important;
+}
+
+.negative {
+  color: #ef4444 !important;
+}
+
+.neutral {
+  color: #707a8a !important;
+}
+
+.ai-panel button {
+  width: 100%;
+  margin-top: 14px;
+  color: #fff;
+  border-color: #111;
+  background: #111;
+}
+
+@media (max-width: 900px) {
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .detail-page {
+    padding: 20px 12px 40px;
+  }
+  .detail-title,
+  .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .price-summary {
+    text-align: left;
+  }
 }
 </style>

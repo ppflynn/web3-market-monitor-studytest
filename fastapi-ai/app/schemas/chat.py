@@ -28,6 +28,7 @@ class RagSource(BaseModel):
     path: str = Field(..., description="Project-relative file path.")
     snippet: str = Field(..., description="Retrieved text snippet.")
     score: float = Field(..., description="Retriever relevance score.")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Vector-store metadata.")
 
 
 class RagSearchRequest(BaseModel):
@@ -37,6 +38,14 @@ class RagSearchRequest(BaseModel):
 class RagSearchResponse(BaseModel):
     query: str = Field(..., description="Original search query.")
     sources: list[RagSource] = Field(default_factory=list, description="Matched project snippets.")
+
+
+class RagIndexResponse(BaseModel):
+    collection: str = Field(..., description="Chroma collection name.")
+    persist_dir: str = Field(..., description="Chroma persistence directory.")
+    reset: bool = Field(..., description="Whether the collection was reset before ingestion.")
+    files_indexed: int = Field(..., description="Number of source files indexed.")
+    chunks_indexed: int = Field(..., description="Number of chunks written to Chroma.")
 
 
 class ToolDefinition(BaseModel):

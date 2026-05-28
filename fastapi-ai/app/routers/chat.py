@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings, get_settings
+from app.scripts.ingest_rag import ingest_project_rag
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
     HealthResponse,
+    RagIndexResponse,
     RagSearchRequest,
     RagSearchResponse,
     ToolDefinition,
@@ -57,8 +60,22 @@ async def rag_search(
     request: RagSearchRequest,
     settings: Settings = Depends(get_settings),
 ) -> RagSearchResponse:
-    sources = RagService(settings).search(request.query)
+    sources = await run_in_threadpool(RagService(settings).search, request.query)
     return RagSearchResponse(query=request.query, sources=sources)
+
+
+@router.post(
+    "/rag/reindex",
+    response_model=RagIndexResponse,
+    summary="Rebuild Chroma project RAG index",
+    description="Read configured project files, generate embeddings, and write chunks to Chroma.",
+)
+async def rag_reindex(
+    reset: bool = Query(default=True, description="Reset the Chroma collection before indexing."),
+    settings: Settings = Depends(get_settings),
+) -> RagIndexResponse:
+    result = await run_in_threadpool(ingest_project_rag, settings, reset)
+    return RagIndexResponse(**result)
 
 
 @router.get(

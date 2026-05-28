@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     ai_stream: bool = Field(default=False, alias="AI_STREAM")
     ai_thinking_enabled: bool = Field(default=False, alias="AI_THINKING_ENABLED")
     ai_reasoning_effort: str | None = Field(default=None, alias="AI_REASONING_EFFORT")
+    embedding_api_key: str | None = Field(default=None, alias="EMBEDDING_API_KEY")
+    embedding_base_url: str | None = Field(default=None, alias="EMBEDDING_BASE_URL")
+    embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    embedding_timeout_seconds: float = Field(default=30.0, alias="EMBEDDING_TIMEOUT_SECONDS")
+    embedding_batch_size: int = Field(default=48, alias="EMBEDDING_BATCH_SIZE")
     spring_api_base_url: str = Field(default="http://localhost:8080/api", alias="SPRING_API_BASE_URL")
     spring_api_timeout_seconds: float = Field(default=10.0, alias="SPRING_API_TIMEOUT_SECONDS")
     rag_enabled: bool = Field(default=True, alias="RAG_ENABLED")
@@ -46,6 +51,9 @@ class Settings(BaseSettings):
     rag_snippet_chars: int = Field(default=1200, alias="RAG_SNIPPET_CHARS")
     rag_max_sources: int = Field(default=5, alias="RAG_MAX_SOURCES")
     rag_min_score: float = Field(default=1.2, alias="RAG_MIN_SCORE")
+    rag_reindex_on_start: bool = Field(default=False, alias="RAG_REINDEX_ON_START")
+    chroma_persist_dir: str = Field(default="./chroma-data", alias="CHROMA_PERSIST_DIR")
+    chroma_collection_name: str = Field(default="project_rag", alias="CHROMA_COLLECTION_NAME")
     market_tools_enabled: bool = Field(default=True, alias="MARKET_TOOLS_ENABLED")
     market_tool_default_history_days: int = Field(default=7, alias="MARKET_TOOL_DEFAULT_HISTORY_DAYS")
     market_tool_max_history_days: int = Field(default=30, alias="MARKET_TOOL_MAX_HISTORY_DAYS")
@@ -63,8 +71,17 @@ class Settings(BaseSettings):
         return f"{self.ai_base_url.rstrip('/')}/chat/completions"
 
     @property
+    def embeddings_url(self) -> str:
+        base_url = self.embedding_base_url or self.ai_base_url
+        return f"{base_url.rstrip('/')}/embeddings"
+
+    @property
     def api_key(self) -> str | None:
         return self.ai_api_key or self.deepseek_api_key
+
+    @property
+    def embedding_api_key_value(self) -> str | None:
+        return self.embedding_api_key or self.api_key
 
 
 @lru_cache

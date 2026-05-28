@@ -1,161 +1,127 @@
 <template>
   <div class="market-page">
-    <div class="page-header">
-      <div class="title-row">
-        <h1 class="title">加密货币实时行情</h1>
-        <span class="live-dot" v-if="!error"></span>
-        <span class="live-text" v-if="!error">实时</span>
+    <section class="page-title">
+      <div>
+        <h1>代币行情</h1>
+        <p>跟踪项目数据库里的币种价格、24h 涨跌、市值与更新时间。</p>
       </div>
-      <div class="header-right">
-        <div class="fng-card" v-if="fng" :class="fngClass">
-          <span class="fng-label">恐惧与贪婪</span>
-          <div class="fng-meter">
-            <div class="fng-bar">
-              <div class="fng-fill" :style="{ width: fng.value + '%' }"></div>
-            </div>
-            <span class="fng-value">{{ fng.value }}</span>
-          </div>
-          <span class="fng-class">{{ fngClassificationLabel(fng.classification) }}</span>
-        </div>
-        <div class="search-box">
-          <el-input
-            v-model="searchKeyword"
-            placeholder="搜索币种..."
-            clearable
-            size="large"
-            class="search-input"
-          />
-        </div>
-      </div>
-    </div>
+      <button type="button" class="refresh-button" :disabled="loading" @click="refreshAll">
+        {{ loading ? '刷新中' : '刷新' }}
+      </button>
+    </section>
 
-    <div class="system-status-card" v-if="systemStatus">
-      <div class="status-item">
-        <span class="status-label">系统状态</span>
-        <span class="status-value" :class="systemStatusClass">{{ systemStatusOf(systemStatus) }}</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">币种数量</span>
-        <span class="status-value">{{ numberOf(systemStatus, 'coin_count', 'coinCount') }}</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">价格点数量</span>
-        <span class="status-value">{{ numberOf(systemStatus, 'price_point_count', 'pricePointCount') }}</span>
-      </div>
-      <div class="status-item status-time">
-        <span class="status-label">最近价格更新</span>
-        <span class="status-value">{{ formatStatusTime(timeOf(systemStatus, 'latest_price_update', 'latestPriceUpdate')) }}</span>
-      </div>
-    </div>
-
-    <el-alert
-      v-if="error" :title="error" type="error" show-icon closable
-      @close="error = ''" class="error-alert">
-      <template #default>
-        <el-button text type="primary" size="small" @click="fetchData">重试</el-button>
-      </template>
-    </el-alert>
-
-    <div v-if="loading && allCoins.length === 0" class="skeleton-area">
-      <div class="glass-card">
-        <el-skeleton :rows="10" animated />
-      </div>
-    </div>
-
-    <div v-else class="content-area">
-      <div class="table-glass">
-        <el-table
-          :data="filteredCoins"
-          stripe style="width: 100%"
-          v-loading="loading"
-          element-loading-background="rgba(11,14,20,0.6)"
-          @row-click="onRowClick"
-          :header-cell-style="headerStyle"
-          :cell-style="cellStyle"
+    <section class="market-card">
+      <div class="top-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          :class="{ active: activeTab === tab.value }"
+          @click="activeTab = tab.value"
         >
-          <el-table-column label="#" width="60" align="center">
-            <template #default="{ $index }">
-              <span class="rank-num">{{ $index + 1 }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="币种" min-width="180">
-            <template #default="{ row }">
-              <div class="coin-cell">
-                <div class="coin-icon-fallback" :style="{ background: coinColor(row) }">
-                  {{ coinInitial(row) }}
-                </div>
-                <div class="coin-text">
-                  <span class="coin-symbol-text">{{ symbolOf(row) }}</span>
-                  <span class="coin-name-text">{{ nameOf(row) }}</span>
-                </div>
-              </div>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="最新价" min-width="140" align="right">
-            <template #default="{ row }">
-              <span class="price-text">{{ formatPrice(priceOf(row)) }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="24h涨跌幅" min-width="130" align="right">
-            <template #default="{ row }">
-              <span class="change-tag" :class="changeDir(row)">
-                <span class="change-arrow">{{ changeArrow(row) }}</span>
-                {{ formatChange(changeOf(row)) }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="24h成交量" min-width="140" align="right">
-            <template #default="{ row }">
-              <span class="volume-text">{{ formatVolume(volumeOf(row)) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
+          {{ tab.label }}
+        </button>
       </div>
 
-      <div class="mobile-cards">
-        <div
-          class="mobile-card"
-          v-for="(row, idx) in filteredCoins"
-          :key="coinIdOf(row) || idx"
-          @click="onRowClick(row)"
-        >
-          <div class="mc-top">
-            <div class="coin-icon-fallback" :style="{ background: coinColor(row) }">
-              {{ coinInitial(row) }}
-            </div>
-            <div class="mc-info">
-              <span class="coin-symbol-text">{{ symbolOf(row) }}</span>
-              <span class="coin-name-text">{{ nameOf(row) }}</span>
-            </div>
-            <span class="mc-rank">#{{ idx + 1 }}</span>
-          </div>
-          <div class="mc-bottom">
-            <div class="mc-stat">
-              <span class="mc-label">价格</span>
-              <span class="price-text">{{ formatPrice(priceOf(row)) }}</span>
-            </div>
-            <div class="mc-stat">
-              <span class="mc-label">24h</span>
-              <span class="change-tag" :class="changeDir(row)">
-                {{ formatChange(changeOf(row)) }}
-              </span>
-            </div>
-            <div class="mc-stat">
-              <span class="mc-label">成交量</span>
-              <span class="volume-text">{{ formatVolume(volumeOf(row)) }}</span>
-            </div>
-          </div>
+      <div class="toolbar">
+        <label class="search-box">
+          <span>搜索</span>
+          <input v-model="searchKeyword" type="search" placeholder="搜索代币名称 / Symbol" />
+        </label>
+
+        <div class="sort-pills" aria-label="排序">
+          <button
+            v-for="item in sortOptions"
+            :key="item.value"
+            type="button"
+            :class="{ active: sortKey === item.value }"
+            @click="sortKey = item.value"
+          >
+            {{ item.label }}
+          </button>
         </div>
       </div>
-    </div>
 
-    <div v-if="filteredCoins.length === 0 && !loading && !error" class="empty-state">
-      <el-empty description="暂无数据" :image-size="80" />
-    </div>
+      <div class="status-strip" v-if="fng || systemStatus">
+        <div v-if="fng">
+          <span>恐惧贪婪指数</span>
+          <strong>{{ fngValue }}</strong>
+          <em>{{ fngClassificationLabel(fng.classification) }}</em>
+        </div>
+        <div v-if="systemStatus">
+          <span>系统状态</span>
+          <strong>{{ systemStatusOf(systemStatus) }}</strong>
+          <em>{{ numberOf(systemStatus, 'coin_count', 'coinCount') }} coins</em>
+        </div>
+        <div v-if="systemStatus">
+          <span>最近更新</span>
+          <strong>{{ formatStatusTime(timeOf(systemStatus, 'latest_price_update', 'latestPriceUpdate')) }}</strong>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="error"
+        :title="error"
+        type="error"
+        show-icon
+        closable
+        class="error-alert"
+        @close="error = ''"
+      >
+        <template #default>
+          <el-button text type="primary" size="small" @click="refreshAll">重试</el-button>
+        </template>
+      </el-alert>
+
+      <div v-if="loading && allCoins.length === 0" class="skeleton-card">
+        <el-skeleton :rows="9" animated />
+      </div>
+
+      <div v-else class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>代币</th>
+              <th class="right">价格</th>
+              <th class="right">24h 涨跌</th>
+              <th class="right">市值</th>
+              <th class="right">最后更新</th>
+              <th class="right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in sortedCoins" :key="coinIdOf(row) || index">
+              <td>
+                <div class="token-cell">
+                  <span class="rank">{{ index + 1 }}</span>
+                  <span class="token-icon" :style="{ background: coinColor(row) }">{{ coinInitial(row) }}</span>
+                  <span class="token-copy">
+                    <strong>{{ symbolOf(row) }}</strong>
+                    <small>{{ nameOf(row) }}</small>
+                  </span>
+                </div>
+              </td>
+              <td class="right number primary">{{ formatPrice(priceOf(row)) }}</td>
+              <td class="right">
+                <span class="change" :class="changeDir(row)">
+                  {{ formatSignedChange(changeOf(row)) }}
+                </span>
+              </td>
+              <td class="right number">{{ formatMarketCap(marketCapOf(row)) }}</td>
+              <td class="right number muted">{{ formatStatusTime(lastUpdatedOf(row)) }}</td>
+              <td class="right actions">
+                <button type="button" @click="openDetail(row)">详情</button>
+                <button type="button" @click="openAiFor(row)">AI</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="sortedCoins.length === 0 && !loading" class="empty-state">
+        <el-empty description="暂无匹配币种" :image-size="82" />
+      </div>
+    </section>
   </div>
 </template>
 
@@ -171,34 +137,55 @@ const allCoins = ref([])
 const loading = ref(false)
 const error = ref('')
 const searchKeyword = ref('')
+const sortKey = ref('default')
+const activeTab = ref('all')
 const fng = ref(null)
 const systemStatus = ref(null)
-
 let pollTimer = null
 
-const headerStyle = () => ({
-  background: 'rgba(255,255,255,0.04)',
-  color: '#64748b', fontWeight: 600, fontSize: '12px',
-  borderBottom: '1px solid rgba(255,255,255,0.06)', height: '46px'
+const tabs = [
+  { label: '热门', value: 'all' },
+  { label: '上涨', value: 'gainers' },
+  { label: '下跌', value: 'losers' },
+  { label: '大市值', value: 'large' }
+]
+
+const sortOptions = [
+  { label: '默认', value: 'default' },
+  { label: '市值', value: 'marketCap' },
+  { label: '价格', value: 'price' },
+  { label: '涨幅', value: 'changeUp' },
+  { label: '跌幅', value: 'changeDown' }
+]
+
+const fngValue = computed(() => Number(fng.value?.value ?? 0))
+
+const tabbedCoins = computed(() => {
+  if (activeTab.value === 'gainers') return allCoins.value.filter(row => numForSort(changeOf(row)) > 0)
+  if (activeTab.value === 'losers') return allCoins.value.filter(row => numForSort(changeOf(row)) < 0)
+  if (activeTab.value === 'large') {
+    const marketCaps = allCoins.value.map(marketCapOf).filter(v => v != null).sort((a, b) => b - a)
+    const threshold = marketCaps[Math.min(9, marketCaps.length - 1)] ?? 0
+    return allCoins.value.filter(row => numForSort(marketCapOf(row)) >= threshold)
+  }
+  return allCoins.value
 })
 
-const cellStyle = () => ({
-  borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', height: '56px'
+const filteredCoins = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return tabbedCoins.value
+  return tabbedCoins.value.filter(row => {
+    return nameOf(row).toLowerCase().includes(kw) || symbolOf(row).toLowerCase().includes(kw)
+  })
 })
 
-const fngClass = computed(() => {
-  if (!fng.value) return ''
-  const v = fng.value.value
-  if (v <= 25) return 'fng-extreme-fear'
-  if (v <= 45) return 'fng-fear'
-  if (v <= 55) return 'fng-neutral'
-  if (v <= 75) return 'fng-greed'
-  return 'fng-extreme-greed'
-})
-
-const systemStatusClass = computed(() => {
-  const status = systemStatusOf(systemStatus.value).toLowerCase()
-  return status === 'ok' ? 'ok' : 'warn'
+const sortedCoins = computed(() => {
+  const list = [...filteredCoins.value]
+  if (sortKey.value === 'marketCap') return list.sort((a, b) => numForSort(marketCapOf(b)) - numForSort(marketCapOf(a)))
+  if (sortKey.value === 'price') return list.sort((a, b) => numForSort(priceOf(b)) - numForSort(priceOf(a)))
+  if (sortKey.value === 'changeUp') return list.sort((a, b) => numForSort(changeOf(b)) - numForSort(changeOf(a)))
+  if (sortKey.value === 'changeDown') return list.sort((a, b) => numForSort(changeOf(a)) - numForSort(changeOf(b)))
+  return list
 })
 
 function safeProp(row, key) { return row ? (row[key] ?? '') : '' }
@@ -213,7 +200,6 @@ function timeOf(row, snakeKey, camelKey) { return valueOf(row, snakeKey, camelKe
 function systemStatusOf(row) {
   return row ? (row.system_status ?? row.systemStatus ?? row.status ?? '--') : '--'
 }
-
 function fngClassificationLabel(value) {
   const text = String(value || '').toLowerCase()
   if (text.includes('extreme fear')) return '极度恐惧'
@@ -234,46 +220,31 @@ function priceOf(row) {
   return v != null ? Number(v) : null
 }
 function changeOf(row) {
-  const v = row?.price_change_percentage_24h ?? row?.priceChangePercentage24h
+  const v = row?.price_change_percentage_24h ?? row?.price_change_percentage24h ?? row?.priceChangePercentage24h
   return v != null ? Number(v) : null
 }
-function volumeOf(row) {
-  const v = row?.total_volume ?? row?.totalVolume ?? row?.base_volume ?? row?.baseVolume
+function marketCapOf(row) {
+  const v = row?.market_cap ?? row?.marketCap
   return v != null ? Number(v) : null
 }
-
+function lastUpdatedOf(row) {
+  return row?.last_updated ?? row?.lastUpdated ?? null
+}
 function coinInitial(row) {
-  const name = nameOf(row)
-  if (name) return name.charAt(0).toUpperCase()
   const sym = symbolOf(row)
-  return sym ? sym.charAt(0) : '?'
+  return sym ? sym.slice(0, 2) : (nameOf(row).charAt(0).toUpperCase() || '?')
 }
-
 function coinColor(row) {
   const str = nameOf(row) || symbolOf(row) || '?'
   let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return `hsl(${Math.abs(hash) % 360}, 55%, 45%)`
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  return `hsl(${Math.abs(hash) % 360}, 72%, 45%)`
 }
-
 function changeDir(row) {
   const v = changeOf(row)
-  if (v == null) return 'neutral'
-  if (v > 0) return 'up'
-  if (v < 0) return 'down'
-  return 'neutral'
+  if (v == null || v === 0) return 'neutral'
+  return v > 0 ? 'up' : 'down'
 }
-
-function changeArrow(row) {
-  const v = changeOf(row)
-  if (v == null) return ''
-  if (v > 0) return '▲'
-  if (v < 0) return '▼'
-  return ''
-}
-
 function formatPrice(price) {
   if (price == null) return '$ --'
   const num = Number(price)
@@ -282,42 +253,39 @@ function formatPrice(price) {
   if (num >= 0.01) return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 })
 }
-
-function formatChange(change) {
+function formatSignedChange(change) {
   if (change == null) return '--'
-  return Math.abs(Number(change)).toFixed(2) + '%'
+  const num = Number(change)
+  const sign = num > 0 ? '+' : num < 0 ? '-' : ''
+  return sign + Math.abs(num).toFixed(2) + '%'
 }
-
-function formatVolume(vol) {
-  if (vol == null) return '--'
-  if (vol === 0) return '$0'
-  const num = Number(vol)
+function formatMarketCap(cap) {
+  if (cap == null) return '--'
+  const num = Number(cap)
   if (num >= 1e12) return '$' + (num / 1e12).toFixed(2) + 'T'
   if (num >= 1e9) return '$' + (num / 1e9).toFixed(2) + 'B'
   if (num >= 1e6) return '$' + (num / 1e6).toFixed(2) + 'M'
   if (num >= 1e3) return '$' + (num / 1e3).toFixed(2) + 'K'
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
-
 function formatStatusTime(value) {
   return formatAppDateTime(value)
 }
-
-const filteredCoins = computed(() => {
-  const kw = searchKeyword.value.trim().toLowerCase()
-  if (!kw) return allCoins.value
-  return allCoins.value.filter(row => {
-    const name = nameOf(row).toLowerCase()
-    const sym = symbolOf(row).toLowerCase()
-    return name.includes(kw) || sym.includes(kw)
-  })
-})
-
-function onRowClick(row) {
+function numForSort(value) {
+  return value == null || Number.isNaN(Number(value)) ? -Infinity : Number(value)
+}
+function openDetail(row) {
   const id = coinIdOf(row)
   if (id) router.push('/coin/' + id)
 }
-
+function openAiFor(row) {
+  router.push({
+    name: 'AiAssistant',
+    query: {
+      q: `${symbolOf(row) || coinIdOf(row)} 最近走势怎么看？请基于项目数据库和历史价格做信息分析，不要给投资建议。`
+    }
+  })
+}
 async function fetchData() {
   try {
     loading.value = true
@@ -326,12 +294,11 @@ async function fetchData() {
     allCoins.value = res.data?.data ?? res.data ?? []
   } catch (err) {
     console.error('Failed to fetch coin list:', err)
-    if (allCoins.value.length === 0) error.value = '网络请求失败，请检查网络连接后重试'
+    if (allCoins.value.length === 0) error.value = '网络请求失败，请检查后端服务后重试'
   } finally {
     loading.value = false
   }
 }
-
 async function fetchFng() {
   try {
     const res = await getFearGreed()
@@ -340,7 +307,6 @@ async function fetchFng() {
     console.error('Failed to fetch F&G:', err)
   }
 }
-
 async function fetchStatus() {
   try {
     const res = await getSystemStatus()
@@ -349,18 +315,15 @@ async function fetchStatus() {
     console.error('Failed to fetch system status:', err)
   }
 }
-
-onMounted(() => {
+function refreshAll() {
   fetchData()
   fetchFng()
   fetchStatus()
-  pollTimer = setInterval(() => {
-    fetchData()
-    fetchFng()
-    fetchStatus()
-  }, 60000)
+}
+onMounted(() => {
+  refreshAll()
+  pollTimer = setInterval(refreshAll, 60000)
 })
-
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
 })
@@ -368,354 +331,393 @@ onUnmounted(() => {
 
 <style scoped>
 .market-page {
-  min-height: 100vh;
-  padding: 24px 16px 60px;
-  max-width: 1280px;
+  width: min(1280px, 100%);
+  min-height: calc(100vh - 64px);
   margin: 0 auto;
+  padding: 28px 24px 56px;
 }
 
-.page-header {
+.page-title {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #f1f5f9;
+.page-title h1 {
   margin: 0;
+  color: #111;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
-.live-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 6px rgba(52,211,153,0.5);
-  animation: pulse-dot 2s ease-in-out infinite;
+.page-title p {
+  margin: 8px 0 0;
+  color: #707a8a;
+  font-size: 14px;
 }
 
-.live-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: #34d399;
-  text-transform: uppercase;
+button {
+  font-family: inherit;
 }
 
-@keyframes pulse-dot {
-  0%,100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.fng-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px;
-  padding: 8px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
-  transition: border-color 0.3s;
-}
-
-.fng-card.fng-extreme-fear { border-color: rgba(239,68,68,0.5); }
-.fng-card.fng-fear { border-color: rgba(245,158,11,0.5); }
-.fng-card.fng-neutral { border-color: rgba(148,163,184,0.5); }
-.fng-card.fng-greed { border-color: rgba(34,197,94,0.5); }
-.fng-card.fng-extreme-greed { border-color: rgba(34,197,94,0.8); }
-
-.fng-label {
-  font-size: 10px;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-.fng-meter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fng-bar {
-  flex: 1;
-  height: 6px;
-  background: rgba(255,255,255,0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.fng-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.5s;
-  background: linear-gradient(90deg, #ef4444, #f59e0b, #eab308, #22c55e, #16a34a);
-  background-size: 200% 100%;
-}
-
-.fng-value {
-  font-size: 18px;
+.refresh-button {
+  min-width: 72px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 18px;
+  color: #fff;
+  background: #111;
+  cursor: pointer;
+  font-size: 14px;
   font-weight: 700;
-  color: #f1f5f9;
-  font-variant-numeric: tabular-nums;
-  min-width: 28px;
-  text-align: right;
 }
 
-.fng-class {
-  font-size: 10px;
-  color: #94a3b8;
-  font-weight: 500;
+.refresh-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.market-card {
+  overflow: hidden;
+  border: 1px solid #ebedf0;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.top-tabs {
+  display: flex;
+  gap: 26px;
+  padding: 0 24px;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.top-tabs button {
+  position: relative;
+  height: 56px;
+  border: 0;
+  color: #707a8a;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.top-tabs button.active {
+  color: #111;
+}
+
+.top-tabs button.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: #111;
+  content: "";
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
 }
 
 .search-box {
-  width: 180px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(360px, 100%);
 }
 
-.search-input :deep(.el-input__wrapper) {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  box-shadow: none;
-  height: 40px;
-}
-
-.search-input :deep(.el-input__wrapper:hover) {
-  border-color: rgba(255,255,255,0.14);
-}
-
-.search-input :deep(.el-input__wrapper.is-focus) {
-  border-color: rgba(59,130,246,0.5);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-}
-
-.search-input :deep(.el-input__inner) {
-  color: #e2e8f0;
+.search-box span {
+  position: absolute;
+  left: 14px;
+  color: #707a8a;
   font-size: 13px;
-}
-
-.search-input :deep(.el-input__inner::placeholder) {
-  color: #475569;
-}
-
-.error-alert {
-  margin-bottom: 16px;
-  background: rgba(248,113,113,0.1);
-  border: 1px solid rgba(248,113,113,0.2);
-  border-radius: 12px;
-}
-
-.error-alert :deep(.el-alert__title) { color: #fca5a5; }
-
-.system-status-card {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  margin-bottom: 16px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-}
-
-.status-item {
-  min-width: 0;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
-}
-
-.status-label {
-  display: block;
-  margin-bottom: 4px;
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-value {
-  display: block;
-  overflow: hidden;
-  color: #e2e8f0;
-  font-size: 14px;
   font-weight: 700;
+}
+
+.search-box input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #ebedf0;
+  border-radius: 20px;
+  padding: 0 16px 0 52px;
+  outline: none;
+  color: #111;
+  background: #f7f8fa;
+  font-size: 14px;
+}
+
+.search-box input:focus {
+  border-color: #111;
+  background: #fff;
+}
+
+.sort-pills {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.sort-pills button {
+  height: 32px;
+  border: 1px solid #ebedf0;
+  border-radius: 16px;
+  padding: 0 12px;
+  color: #3f4656;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sort-pills button.active {
+  color: #111;
+  border-color: #111;
+  background: #f5f5f5;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 24px 16px;
+  overflow: hidden;
+  border: 1px solid #ebedf0;
+  border-radius: 12px;
+  background: #ebedf0;
+}
+
+.status-strip div {
+  min-width: 0;
+  padding: 13px 14px;
+  background: #fff;
+}
+
+.status-strip span {
+  display: block;
+  color: #707a8a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-strip strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 5px;
+  color: #111;
+  font-size: 16px;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-value.ok { color: #34d399; }
-.status-value.warn { color: #fbbf24; }
-
-.skeleton-area { margin-top: 4px; }
-
-.glass-card {
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 16px;
-  padding: 28px;
+.status-strip em {
+  display: block;
+  margin-top: 4px;
+  color: #707a8a;
+  font-style: normal;
+  font-size: 12px;
 }
 
-.glass-card :deep(.el-skeleton__item) {
-  background: rgba(255,255,255,0.06);
-  border-radius: 6px;
+.error-alert {
+  margin: 0 24px 16px;
+  border-radius: 12px;
 }
 
-.content-area {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.skeleton-card {
+  padding: 0 24px 24px;
 }
 
-.table-glass {
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 16px;
-  overflow: hidden;
+.table-wrap {
+  overflow-x: auto;
 }
 
-.table-glass :deep(.el-table) {
-  background: transparent;
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: transparent;
-  --el-table-row-hover-bg-color: rgba(255,255,255,0.05);
-  --el-table-border-color: rgba(255,255,255,0.04);
-  --el-table-text-color: #e2e8f0;
+table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+thead {
+  background: #fafafa;
+}
+
+tr {
+  border-top: 1px solid #ebedf0;
+}
+
+th,
+td {
+  height: 60px;
+  padding: 0 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: #707a8a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+td {
+  color: #111;
   font-size: 14px;
+  font-weight: 600;
 }
 
-.table-glass :deep(.el-table th.el-table__cell) { background: rgba(255,255,255,0.03); }
-.table-glass :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) { background: rgba(255,255,255,0.02); }
-.table-glass :deep(.el-table .el-table__body tr:hover > td) { background: rgba(255,255,255,0.06); }
-.table-glass :deep(.el-loading-mask) { background: rgba(11,14,20,0.6); backdrop-filter: blur(4px); }
+tbody tr:hover {
+  background: #fafafa;
+}
 
-.rank-num { color: #64748b; font-size: 13px; font-weight: 500; }
+.right {
+  text-align: right;
+}
 
-.coin-cell { display: flex; align-items: center; gap: 12px; }
-
-.coin-icon-fallback {
-  width: 34px; height: 34px;
-  border-radius: 50%;
+.token-cell {
   display: flex;
   align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.rank {
+  width: 24px;
+  color: #9aa1ad;
+  font-size: 13px;
+}
+
+.token-icon {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   color: #fff;
-  font-weight: 700;
-  font-size: 15px;
+  font-size: 11px;
+  font-weight: 800;
   flex-shrink: 0;
 }
 
-.coin-text { display: flex; flex-direction: column; line-height: 1.3; }
-.coin-symbol-text { font-size: 13px; font-weight: 600; color: #e2e8f0; text-transform: uppercase; }
-.coin-name-text { font-size: 11px; color: #64748b; }
-
-.price-text { font-weight: 600; color: #e2e8f0; font-size: 14px; font-variant-numeric: tabular-nums; }
-
-.change-tag {
-  font-weight: 600; font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 2px 7px; border-radius: 5px;
-}
-.change-tag.up { color: #34d399; background: rgba(52,211,153,0.1); }
-.change-tag.down { color: #f87171; background: rgba(248,113,113,0.1); }
-.change-tag.neutral { color: #64748b; }
-.change-arrow { font-size: 9px; }
-
-.volume-text { font-weight: 500; color: #94a3b8; font-size: 13px; font-variant-numeric: tabular-nums; }
-
-.mobile-cards { display: none; flex-direction: column; gap: 8px; }
-
-.mobile-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.mobile-card:active { background: rgba(255,255,255,0.06); }
-
-.mc-top {
+.token-copy {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.mc-info { display: flex; flex-direction: column; line-height: 1.3; flex: 1; }
-.mc-rank { color: #64748b; font-size: 12px; font-weight: 600; }
-
-.mc-bottom { display: flex; justify-content: space-between; gap: 8px; }
-.mc-stat { display: flex; flex-direction: column; gap: 2px; }
-.mc-label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 500; }
-
-.empty-state { margin-top: 40px; }
-.empty-state :deep(.el-empty__description) { color: #64748b; }
-
-@media (min-width: 769px) {
-  .mobile-cards { display: none !important; }
+.token-copy strong {
+  color: #111;
+  font-size: 14px;
+  font-weight: 800;
 }
 
-@media (max-width: 768px) {
-  .table-glass { display: none !important; }
-  .mobile-cards { display: flex !important; }
+.token-copy small {
+  overflow: hidden;
+  max-width: 220px;
+  color: #707a8a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
 
-  .market-page { padding: 16px 12px 40px; }
-  .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
+.number {
+  font-variant-numeric: tabular-nums;
+}
 
-  .header-right {
+.number.primary {
+  font-weight: 800;
+}
+
+.muted {
+  color: #707a8a;
+  font-size: 13px;
+}
+
+.change {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.change.up {
+  color: #16a34a;
+}
+
+.change.down {
+  color: #ef4444;
+}
+
+.change.neutral {
+  color: #707a8a;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.actions button {
+  height: 30px;
+  border: 1px solid #ebedf0;
+  border-radius: 15px;
+  padding: 0 12px;
+  color: #111;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.actions button:hover {
+  border-color: #111;
+}
+
+.empty-state {
+  padding: 36px 0;
+}
+
+@media (max-width: 760px) {
+  .market-page {
+    padding: 20px 12px 40px;
+  }
+
+  .page-title,
+  .toolbar {
+    align-items: stretch;
     flex-direction: column;
-    gap: 8px;
   }
 
-  .search-box { width: 100%; }
-
-  .system-status-card {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .page-title h1 {
+    font-size: 26px;
   }
 
-  .status-time {
-    grid-column: span 2;
+  .top-tabs {
+    gap: 18px;
+    overflow-x: auto;
+    padding: 0 16px;
   }
 
-  .fng-card {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+  .toolbar {
+    padding: 16px;
+  }
+
+  .search-box {
     width: 100%;
   }
 
-  .fng-label { flex-shrink: 0; }
-  .fng-meter { flex: 1; }
-  .fng-class { flex-shrink: 0; }
-  .fng-value { font-size: 16px; min-width: 24px; }
-
-  .title { font-size: 20px; }
-
-  .mc-bottom .price-text { font-size: 14px; }
-  .mc-bottom .change-tag { font-size: 12px; }
-  .mc-bottom .volume-text { font-size: 12px; }
+  .status-strip {
+    grid-template-columns: 1fr;
+    margin: 0 16px 16px;
+  }
 }
 </style>

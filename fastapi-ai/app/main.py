@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.routers import chat
+from app.scripts.ingest_rag import ingest_project_rag
 
 
 def create_app() -> FastAPI:
@@ -11,12 +13,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        description="独立的 FastAPI AI 功能层，负责 LLM 聊天中转、后续币价分析、工具调用和 RAG 文档问答。",
-        version="0.1.0",
+        description="独立的 FastAPI AI 功能层，负责 LLM 聊天中转、行情工具调用和 Embedding + Chroma RAG 文档问答。",
+        version="0.15.0",
         openapi_tags=[
             {
                 "name": "AI 基础接口",
-                "description": "第一阶段接口：健康检查和 LLM 聊天中转。",
+                "description": "健康检查、LLM 聊天、RAG 和行情工具调试接口。",
             }
         ],
     )
@@ -28,6 +30,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.on_event("startup")
+    async def maybe_reindex_rag() -> None:
+        if settings.rag_enabled and settings.rag_reindex_on_start:
+            await run_in_threadpool(ingest_project_rag, settings, True)
 
     @app.get("/", include_in_schema=False)
     async def index() -> HTMLResponse:
@@ -88,7 +95,7 @@ def create_app() -> FastAPI:
                   <h1>CoinMarketCap Web3 AI 智能分析服务</h1>
                   <p>
                     这是项目旁边独立运行的 FastAPI AI 服务。
-                    第一阶段已经提供健康检查和 LLM 聊天中转接口，后续会继续接入币价分析、工具调用和 RAG 文档问答。
+                    当前已经提供健康检查、LLM 聊天中转、行情工具调用和 Embedding + Chroma RAG 文档问答接口。
                   </p>
                   <div class="actions">
                     <a href="/docs">打开接口文档</a>

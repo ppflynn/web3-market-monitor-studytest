@@ -65,8 +65,13 @@ SPRING_REDIS_HOST
 SPRING_REDIS_PORT
 DEEPSEEK_API_KEY
 AI_API_KEY
+EMBEDDING_API_KEY
+EMBEDDING_BASE_URL
 RAG_ENABLED
 RAG_ROOT_PATH
+RAG_REINDEX_ON_START
+CHROMA_PERSIST_DIR
+CHROMA_COLLECTION_NAME
 MARKET_TOOLS_ENABLED
 ```
 
@@ -75,6 +80,8 @@ MARKET_TOOLS_ENABLED
 AI 服务可以不配置真实 API Key 启动，但聊天接口会提示需要设置 Key。需要调用大模型时，请在本地 `.env` 中填写 `DEEPSEEK_API_KEY` 或 `AI_API_KEY`。
 
 AI 服务默认启用本地项目 RAG 和结构化行情工具层。Docker Compose 会把项目目录只读挂载到 AI 容器的 `/workspace`，并设置 `RAG_ROOT_PATH=/workspace`。RAG 会按 `.env.example` 中的 `RAG_INCLUDE_PATHS` 和 `RAG_EXCLUDE_DIRS` 检索公开仓库源码，不会扫描 `.git`、`.env`、`node_modules`、`target`、`dist` 等目录。
+
+当前 RAG 使用 Embedding + Chroma 持久化向量检索。需要调用 RAG 时，请确保 `.env` 中配置了可用的 `DEEPSEEK_API_KEY` / `AI_API_KEY`，或单独配置支持 OpenAI-compatible `/embeddings` 的 `EMBEDDING_API_KEY` 和 `EMBEDDING_BASE_URL`。
 
 ## 常用命令
 
@@ -127,7 +134,13 @@ MySQL 数据保存在 Docker volume 中：
 coinmarket-mysql-data
 ```
 
-执行 `docker compose down` 不会删除该数据卷。若要连同数据库数据一起清理：
+Chroma 向量库数据保存在 Docker volume 中：
+
+```text
+coinmarket-chroma-data
+```
+
+执行 `docker compose down` 不会删除这些数据卷。若要连同数据库和 Chroma 数据一起清理：
 
 ```powershell
 docker compose down -v
@@ -187,12 +200,25 @@ AI 容器内的 RAG 项目目录：
 /workspace
 ```
 
+AI 容器内的 Chroma 持久化目录：
+
+```text
+/data/chroma
+```
+
 AI 调试接口：
 
 ```text
 GET  http://localhost:8000/api/ai/tools
 POST http://localhost:8000/api/ai/tools/run
 POST http://localhost:8000/api/ai/rag/search
+POST http://localhost:8000/api/ai/rag/reindex?reset=true
+```
+
+首次启动或源码变更后，重建 RAG 向量库：
+
+```powershell
+docker exec coinmarket-ai python -m app.scripts.ingest_rag
 ```
 
 ## 部署文件
